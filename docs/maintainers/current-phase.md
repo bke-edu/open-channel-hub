@@ -30,7 +30,7 @@ that one server-owned scope. The final step is visibly paused: this does not add
 provider sending, a worker, retry, delivery/read status, or browser credential.
 
 **Candidate dashboard authentication extension:** the current working tree adds
-optional configured Google sign-in for an existing dashboard principal.
+Google-only sign-in for an existing dashboard principal.
 It uses a server-side authorization-code PKCE flow, exact redirect URI,
 state/nonce, a short-lived opaque transaction cookie, and one immutable
 HMAC-only identity link per principal. It does not auto-provision an account,
@@ -330,19 +330,20 @@ the browser:
 - The optional root `dashboard` object is accepted only with configured
   `inboxes` and PostgreSQL. It requires an exact public HTTPS origin, one or
   two distinct cookie-signing keys, a distinct session HMAC pepper, and one to
-  one hundred configured principals. A principal has an opaque ID, an exact
-  Argon2id `m=19456,t=2,p=1` PHC hash, and an explicit allow-list of existing
+  one hundred configured principals. A principal has an opaque ID, a legacy
+  Argon2id `m=19456,t=2,p=1` PHC verifier retained only for version-1 parsing,
+  and an explicit allow-list of existing
   inbox IDs.
 - `/operator/login`, `/operator`, and same-origin CSS are server-rendered with
   no dashboard JavaScript, browser bearer, provider credential, or
   caller-selected connection scope. The server uses the Phase 4a inbox reader
   only after it authenticates and scopes the configured principal.
 - Session cookies are signed `__Host-` cookies with `Secure`, `HttpOnly`,
-  `SameSite=Lax`, and `Path=/`. Lax is required only for the optional top-level
-  Google callback; login/logout and every other dashboard write still require
-  an exact `Origin` and hidden anti-forgery token. Sessions use a 30-minute
-  idle limit, an eight-hour absolute limit, server-side revocation, and a
-  bounded in-process failed-login throttle.
+  `SameSite=Lax`, and `Path=/`. Google is the only dashboard login; Lax is
+  required for the top-level Google callback. Login/logout and every other
+  dashboard write still require an exact `Origin` and hidden anti-forgery
+  token. Sessions use a 30-minute idle limit, an eight-hour absolute limit,
+  and server-side revocation.
 - `0008_dashboard_sessions` retains only HMACs of random browser session and
   anti-forgery tokens plus principal ID and lifecycle timestamps. It contains
   no raw token, password, password hash, inbox bearer, provider credential, or

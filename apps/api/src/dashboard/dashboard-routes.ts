@@ -8,7 +8,6 @@ import {
   decodeInboxOutboundCommandHistoryCursor,
   encodeInboxOutboundCommandHistoryCursor
 } from '../inbox/inbox-outbound-command-history-cursor.js';
-import { createDashboardLoginThrottle, verifyDashboardPassword } from './dashboard-auth.js';
 import type { DashboardFeature, DashboardInbox } from './dashboard-feature.js';
 import {
   renderDashboardConnectionsPage,
@@ -45,13 +44,6 @@ const operatorQuerySchema = z
   .object({
     cursor: z.string().min(1).max(MAX_CURSOR_LENGTH).optional(),
     inbox: z.string().regex(IDENTIFIER_PATTERN).optional()
-  })
-  .strict();
-const loginFormSchema = z
-  .object({
-    csrf: z.string().regex(OPAQUE_TOKEN_PATTERN),
-    password: z.string().min(1).max(512),
-    principal: z.string().regex(IDENTIFIER_PATTERN)
   })
   .strict();
 const logoutFormSchema = z.object({ csrf: z.string().regex(OPAQUE_TOKEN_PATTERN) }).strict();
@@ -92,40 +84,38 @@ const telegramDeliveryAuthorizationFormSchema = z
   })
   .strict();
 
-const signedLoginCsrfCookieOptions = Object.freeze({
-  httpOnly: true,
-  path: '/',
-  sameSite: 'strict' as const,
-  secure: true,
-  signed: true
-});
-const signedSessionCookieOptions = Object.freeze({
-  httpOnly: true,
-  path: '/',
-  sameSite: 'lax' as const,
-  secure: true,
-  signed: true
-});
-const signedGoogleTransactionCookieOptions = Object.freeze({
-  httpOnly: true,
-  maxAge: 10 * 60,
-  path: '/',
-  sameSite: 'lax' as const,
-  secure: true,
-  signed: true
-});
-const clearLoginCsrfCookieOptions = Object.freeze({
-  httpOnly: true,
-  path: '/',
-  sameSite: 'strict' as const,
-  secure: true
-});
-const clearSessionCookieOptions = Object.freeze({
-  httpOnly: true,
-  path: '/',
-  sameSite: 'lax' as const,
-  secure: true
-});
+const signedLoginCsrfCookieOptions = (secure: boolean) =>
+  Object.freeze({
+    httpOnly: true,
+    path: '/',
+    sameSite: 'strict' as const,
+    secure,
+    signed: true
+  });
+const signedSessionCookieOptions = (secure: boolean) =>
+  Object.freeze({
+    httpOnly: true,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure,
+    signed: true
+  });
+const signedGoogleTransactionCookieOptions = (secure: boolean) =>
+  Object.freeze({
+    httpOnly: true,
+    maxAge: 10 * 60,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure,
+    signed: true
+  });
+const clearSessionCookieOptions = (secure: boolean) =>
+  Object.freeze({
+    httpOnly: true,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure
+  });
 
 interface AuthenticatedDashboardSession {
   readonly csrfToken: string;
@@ -150,11 +140,11 @@ export const registerDashboardRoutes = async (
   feature: DashboardFeature
 ): Promise<void> => {
   const manager = createDashboardSessionManager(feature.sessionStore, feature.sessionIdPepper);
-  const throttle = createDashboardLoginThrottle();
   const replyIntentThrottle = createDashboardReplyIntentThrottle();
   const googleAuthentication = feature.googleAuthentication;
   const googleTransactions =
     googleAuthentication === undefined ? undefined : createDashboardGoogleOAuthTransactionManager();
+  const secureCookies = feature.publicOrigin.startsWith('https:');
 
   app.addContentTypeParser(
     'application/x-www-form-urlencoded',
@@ -192,67 +182,37 @@ export const registerDashboardRoutes = async (
       reply,
       manager,
       query.success ? query.data.error : undefined,
-      googleAuthentication !== undefined
+      googleAuthentication !== undefined,
+      secureCookies
     );
   });
 
-  app.post<{ Body: string }>('/operator/session', async (request, reply) => {
-    if (!hasExpectedOrigin(request, feature.publicOrigin)) {
-      return sendLoginPage(reply.code(403), manager, 'invalid', googleAuthentication !== undefined);
-    }
-
-    const form = parseForm(request.body, loginFormSchema);
-    const loginCsrfToken = readSignedCookie(request, DASHBOARD_LOGIN_CSRF_COOKIE);
-
-    if (
-      form === undefined ||
-      loginCsrfToken === undefined ||
-      !matchesSecret(form.csrf, loginCsrfToken)
-    ) {
-      clearLoginCsrfCookie(reply);
-      return sendLoginPage(reply.code(403), manager, 'invalid', googleAuthentication !== undefined);
-    }
-
-    const verification = throttle.reserveVerification();
-
-    if (verification === undefined) {
-      clearLoginCsrfCookie(reply);
-      return sendLoginPage(
-        reply.code(429),
-        manager,
-        'throttled',
-        googleAuthentication !== undefined
-      );
-    }
-
-    const principal = feature.findPrincipal(form.principal);
-    let passwordMatches = false;
-
-    try {
-      passwordMatches = await verifyDashboardPassword(principal, form.password);
-    } finally {
-      verification.complete(passwordMatches && principal !== undefined);
-    }
-
-    if (!passwordMatches || principal === undefined) {
-      clearLoginCsrfCookie(reply);
-      return sendLoginPage(reply.code(401), manager, 'invalid', googleAuthentication !== undefined);
-    }
-
-    const issued = await manager.createSession(principal.id);
-    clearLoginCsrfCookie(reply);
-    reply.setCookie(
-      DASHBOARD_SESSION_COOKIE,
-      `${issued.sessionToken}.${issued.csrfToken}`,
-      signedSessionCookieOptions
-    );
-
-    return redirectDashboard(reply, '/operator');
-  });
+  // Password login is intentionally gone from the browser surface. Keep this
+  // endpoint as a hard failure for stale bookmarks/forms so a hidden legacy
+  // route cannot become an accidental second authentication mechanism.
+  app.post('/operator/session', async (_request, reply) => sendDashboardFailure(reply.code(404)));
 
   if (googleAuthentication !== undefined && googleTransactions !== undefined) {
     app.get('/operator/auth/google/login', async (_request, reply) =>
-      startGoogleAuthorization(reply, feature, googleTransactions, Object.freeze({ mode: 'login' }))
+      startGoogleAuthorization(
+        reply,
+        feature,
+        googleTransactions,
+        Object.freeze({ mode: 'login' }),
+        secureCookies
+      )
+    );
+
+    // A previous UI build exposed this path as a link. Keep old bookmarks
+    // useful, but always enter the real Google login transaction.
+    app.get('/operator/auth/google/link', async (_request, reply) =>
+      startGoogleAuthorization(
+        reply,
+        feature,
+        googleTransactions,
+        Object.freeze({ mode: 'login' }),
+        secureCookies
+      )
     );
 
     app.post<{ Body: string }>('/operator/auth/google/link', async (request, reply) => {
@@ -275,7 +235,7 @@ export const registerDashboardRoutes = async (
         !matchesSecret(form.csrf, authenticated.csrfToken) ||
         !manager.matchesCsrf(authenticated.session, form.csrf)
       ) {
-        clearSessionCookie(reply);
+        clearSessionCookie(reply, secureCookies);
         return redirectDashboard(reply, '/operator/login?error=invalid');
       }
 
@@ -283,14 +243,15 @@ export const registerDashboardRoutes = async (
         reply,
         feature,
         googleTransactions,
-        Object.freeze({ mode: 'link', principalId: authenticated.session.principalId })
+        Object.freeze({ mode: 'link', principalId: authenticated.session.principalId }),
+        secureCookies
       );
     });
 
     app.get('/operator/auth/google/callback', async (request, reply) => {
       const callback = parseGoogleCallback(request.query);
       const transactionId = readSignedCookie(request, DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE);
-      clearGoogleTransactionCookie(reply);
+      clearGoogleTransactionCookie(reply, secureCookies);
 
       if (callback === undefined || transactionId === undefined) {
         return redirectDashboard(reply, '/operator/login?error=invalid');
@@ -309,7 +270,7 @@ export const registerDashboardRoutes = async (
         let authenticated: AuthenticatedDashboardSession | undefined;
 
         try {
-          authenticated = await touchDashboardSession(request, reply, manager);
+          authenticated = await touchDashboardSession(request, reply, manager, secureCookies);
         } catch {
           return sendDashboardFailure(reply.code(500));
         }
@@ -319,7 +280,7 @@ export const registerDashboardRoutes = async (
           transaction.principalId === undefined ||
           authenticated.session.principalId !== transaction.principalId
         ) {
-          clearSessionCookie(reply);
+          clearSessionCookie(reply, secureCookies);
           return redirectDashboard(reply, '/operator/login?error=invalid');
         }
       }
@@ -380,7 +341,7 @@ export const registerDashboardRoutes = async (
           reply.setCookie(
             DASHBOARD_SESSION_COOKIE,
             `${issued.sessionToken}.${issued.csrfToken}`,
-            signedSessionCookieOptions
+            signedSessionCookieOptions(secureCookies)
           );
           return redirectDashboard(reply, '/operator');
         } catch {
@@ -411,7 +372,13 @@ export const registerDashboardRoutes = async (
 
   app.post<{ Body: string }>('/operator/logout', async (request, reply) => {
     if (!hasExpectedOrigin(request, feature.publicOrigin)) {
-      return sendLoginPage(reply.code(403), manager, 'invalid', googleAuthentication !== undefined);
+      return sendLoginPage(
+        reply.code(403),
+        manager,
+        'invalid',
+        googleAuthentication !== undefined,
+        secureCookies
+      );
     }
 
     const form = parseForm(request.body, logoutFormSchema);
@@ -423,12 +390,12 @@ export const registerDashboardRoutes = async (
       !matchesSecret(form.csrf, authenticated.csrfToken) ||
       !manager.matchesCsrf(authenticated.session, form.csrf)
     ) {
-      clearSessionCookie(reply);
+      clearSessionCookie(reply, secureCookies);
       return redirectDashboard(reply, '/operator/login?error=invalid');
     }
 
     await manager.revokeSession(sessionTokenFromCookie(authenticated.sessionCookieValue));
-    clearSessionCookie(reply);
+    clearSessionCookie(reply, secureCookies);
     return redirectDashboard(reply, '/operator/login');
   });
 
@@ -452,7 +419,7 @@ export const registerDashboardRoutes = async (
     }
 
     if (authenticated === undefined) {
-      clearSessionCookie(reply);
+      clearSessionCookie(reply, secureCookies);
       return redirectDashboard(reply, '/operator/login?error=invalid');
     }
 
@@ -525,7 +492,7 @@ export const registerDashboardRoutes = async (
       }
 
       if (authenticated === undefined) {
-        clearSessionCookie(reply);
+        clearSessionCookie(reply, secureCookies);
         return redirectDashboard(reply, '/operator/login?error=invalid');
       }
 
@@ -573,7 +540,13 @@ export const registerDashboardRoutes = async (
   );
 
   app.get('/operator', async (request, reply) => {
-    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+    const context = await resolveDashboardPageRequest(
+      request,
+      reply,
+      manager,
+      feature,
+      secureCookies
+    );
 
     if (context === undefined) {
       return;
@@ -617,7 +590,13 @@ export const registerDashboardRoutes = async (
   });
 
   app.get('/operator/connections', async (request, reply) => {
-    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+    const context = await resolveDashboardPageRequest(
+      request,
+      reply,
+      manager,
+      feature,
+      secureCookies
+    );
 
     if (context === undefined) {
       return;
@@ -638,7 +617,13 @@ export const registerDashboardRoutes = async (
   });
 
   app.get('/operator/guide', async (request, reply) => {
-    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+    const context = await resolveDashboardPageRequest(
+      request,
+      reply,
+      manager,
+      feature,
+      secureCookies
+    );
 
     if (context === undefined) {
       return;
@@ -659,7 +644,13 @@ export const registerDashboardRoutes = async (
   });
 
   app.get('/operator/outbound-commands', async (request, reply) => {
-    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+    const context = await resolveDashboardPageRequest(
+      request,
+      reply,
+      manager,
+      feature,
+      secureCookies
+    );
 
     if (context === undefined) {
       return;
@@ -745,19 +736,20 @@ const resolveDashboardPageRequest = async (
   request: FastifyRequest,
   reply: FastifyReply,
   manager: DashboardSessionManager,
-  feature: DashboardFeature
+  feature: DashboardFeature,
+  secureCookies: boolean
 ): Promise<ResolvedDashboardPageRequest | undefined> => {
   let authenticated: AuthenticatedDashboardSession | undefined;
 
   try {
-    authenticated = await touchDashboardSession(request, reply, manager);
+    authenticated = await touchDashboardSession(request, reply, manager, secureCookies);
   } catch {
     sendDashboardFailure(reply.code(500));
     return undefined;
   }
 
   if (authenticated === undefined) {
-    clearSessionCookie(reply);
+    clearSessionCookie(reply, secureCookies);
     redirectDashboard(reply, '/operator/login');
     return undefined;
   }
@@ -794,11 +786,16 @@ const sendLoginPage = (
   reply: FastifyReply,
   manager: DashboardSessionManager,
   message: 'invalid' | 'throttled' | undefined,
-  googleAuthenticationEnabled: boolean
+  googleAuthenticationEnabled: boolean,
+  secureCookies: boolean
 ): FastifyReply => {
   const csrfToken = manager.createLoginCsrfToken();
 
-  reply.setCookie(DASHBOARD_LOGIN_CSRF_COOKIE, csrfToken, signedLoginCsrfCookieOptions);
+  reply.setCookie(
+    DASHBOARD_LOGIN_CSRF_COOKIE,
+    csrfToken,
+    signedLoginCsrfCookieOptions(secureCookies)
+  );
   return sendDashboardHtml(
     reply,
     renderDashboardLoginPage({
@@ -821,16 +818,15 @@ const sendDashboardFailure = (reply: FastifyReply): FastifyReply =>
 const redirectDashboard = (reply: FastifyReply, location: string): FastifyReply =>
   reply.header('Cache-Control', 'no-store').redirect(location, 303);
 
-const clearLoginCsrfCookie = (reply: FastifyReply): void => {
-  reply.clearCookie(DASHBOARD_LOGIN_CSRF_COOKIE, clearLoginCsrfCookieOptions);
+const clearSessionCookie = (reply: FastifyReply, secureCookies: boolean): void => {
+  reply.clearCookie(DASHBOARD_SESSION_COOKIE, clearSessionCookieOptions(secureCookies));
 };
 
-const clearSessionCookie = (reply: FastifyReply): void => {
-  reply.clearCookie(DASHBOARD_SESSION_COOKIE, clearSessionCookieOptions);
-};
-
-const clearGoogleTransactionCookie = (reply: FastifyReply): void => {
-  reply.clearCookie(DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE, clearSessionCookieOptions);
+const clearGoogleTransactionCookie = (reply: FastifyReply, secureCookies: boolean): void => {
+  reply.clearCookie(
+    DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE,
+    clearSessionCookieOptions(secureCookies)
+  );
 };
 
 const hasExpectedOrigin = (request: FastifyRequest, publicOrigin: string): boolean =>
@@ -878,7 +874,8 @@ const readDashboardSession = async (
 const touchDashboardSession = async (
   request: FastifyRequest,
   reply: FastifyReply,
-  manager: DashboardSessionManager
+  manager: DashboardSessionManager,
+  secureCookies: boolean
 ): Promise<AuthenticatedDashboardSession | undefined> => {
   const sessionCookieValue = readSignedCookie(request, DASHBOARD_SESSION_COOKIE);
 
@@ -901,7 +898,11 @@ const touchDashboardSession = async (
   const shouldRenewCookie = shouldRenewSignedCookie(request, DASHBOARD_SESSION_COOKIE);
 
   if (shouldRenewCookie) {
-    reply.setCookie(DASHBOARD_SESSION_COOKIE, sessionCookieValue, signedSessionCookieOptions);
+    reply.setCookie(
+      DASHBOARD_SESSION_COOKIE,
+      sessionCookieValue,
+      signedSessionCookieOptions(secureCookies)
+    );
   }
 
   return Object.freeze({
@@ -967,7 +968,8 @@ const startGoogleAuthorization = (
   reply: FastifyReply,
   feature: DashboardFeature,
   transactions: DashboardGoogleOAuthTransactionManager,
-  input: Readonly<{ mode: 'login' | 'link'; principalId?: string }>
+  input: Readonly<{ mode: 'login' | 'link'; principalId?: string }>,
+  secureCookies: boolean
 ): FastifyReply => {
   const googleAuthentication = feature.googleAuthentication;
 
@@ -986,11 +988,11 @@ const startGoogleAuthorization = (
     reply.setCookie(
       DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE,
       transaction.id,
-      signedGoogleTransactionCookieOptions
+      signedGoogleTransactionCookieOptions(secureCookies)
     );
     return reply.header('Cache-Control', 'no-store').redirect(location, 302);
   } catch {
-    clearGoogleTransactionCookie(reply);
+    clearGoogleTransactionCookie(reply, secureCookies);
     return redirectDashboard(reply, '/operator/login?error=invalid');
   }
 };

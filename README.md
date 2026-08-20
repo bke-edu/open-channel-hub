@@ -80,16 +80,17 @@ that fact. It exposes no bearer, Bot credential, target, fingerprint, provider
 request, worker, retry, delivery result, or live Telegram claim. It is a
 self-hosted one-operator alpha boundary, not a dual-control system.
 
-An optional Google sign-in candidate builds on the same configured
-dashboard-principal boundary. It uses a server-side authorization-code flow
-with PKCE, state, nonce, verified ID-token subject, and verified email. One
-optional `dashboard.googleBootstrap` entry may let one exact configured Google
-email bind itself once to one pre-existing configured principal; PostgreSQL
-still retains only an immutable domain-separated HMAC of the subject. Google
-cannot create a principal, inbox permission, or provider connection. The
-feature uses only file-backed client ID/secret values and does not retain a
-Google access, ID, or refresh token. Its exact callback registration and
-first-sign-in procedure are in the [Google dashboard sign-in guide](docs/operations/dashboard-google-sign-in.md).
+The operator dashboard is Google-only. When `dashboard` is configured, the
+deployment must also provide the file-backed Google OAuth client ID and secret;
+the server refuses to start a password-only dashboard. It uses a
+server-side authorization-code flow with PKCE, state, nonce, verified ID-token
+subject, and verified email. One optional `dashboard.googleBootstrap` entry may
+let one exact configured Google email bind itself once to one pre-existing
+configured principal; PostgreSQL still retains only an immutable
+domain-separated HMAC of the subject. Google cannot create a principal, inbox
+permission, or provider connection. The feature does not retain a Google
+access, ID, or refresh token. Its exact callback registration and first-sign-in
+procedure are in the [Google dashboard sign-in guide](docs/operations/dashboard-google-sign-in.md).
 
 The official Telegram Bot HTTP transport is wired for a deliberately narrow
 legacy text send/receive slice. Legacy mode uses <code>OPERATOR_API_TOKEN</code>;
@@ -193,12 +194,13 @@ message path.
 Phase 4b optionally adds a server-rendered read-only dashboard to that exact
 inbox boundary. When the root runtime secret contains `dashboard`, PostgreSQL
 is available, and a matching `inboxes` array already exists, `/operator/login`
-and `/operator` use configured local principals, Argon2id password hashes, and
-signed `Secure` `HttpOnly` session cookies. The browser never receives an inbox
-bearer or provider credential. It is deliberately absent from the supplied
+uses Google OIDC and `/operator` uses a signed `HttpOnly` session cookie. The
+browser never receives an inbox bearer or provider credential, and the
+password endpoint is disabled. It is deliberately absent from the supplied
 standard loopback Compose configuration. A separately configured local Docker
-demonstration may use exact `http://localhost:<port>` only; deployment still
-requires an external HTTPS origin and TLS reverse proxy.
+demonstration may use exact `http://localhost:<port>` only; local cookies omit
+the HTTPS-only flag and the CSP does not upgrade the loopback origin, while a
+real deployment still requires an external HTTPS origin and TLS reverse proxy.
 
 Phase 4c adds <code>POST /v1/inbox/outbound-commands</code> for a configured
 inbox bearer. It records an immutable <code>queued</code> reply intent against
@@ -348,8 +350,8 @@ CAPTCHA bypass, fingerprint spoofing, session theft, or bulk-spam capabilities.
   read canonical inbound events and queued reply-command history, and record a
   source-bound reply intent, but cannot choose an arbitrary recipient or
   dispatch a provider message.
-- An optional server-rendered, no-JavaScript operator dashboard. It uses local
-  configured password principals and browser session cookies; it never exposes
+- An optional server-rendered, no-JavaScript operator dashboard. It uses
+  Google-only sign-in for configured principals and browser session cookies; it never exposes
   an inbox bearer or provider credential to the browser. It renders the inbox,
   source-bound intent, queued-history, and immutable delivery-evidence steps as
   one workflow, while clearly marking provider sending as paused. The verified
@@ -606,8 +608,10 @@ inboxes, not by a browser token or `DASHBOARD_*` environment variable. It is
 absent by default. A valid configuration normally needs an exact public HTTPS
 origin; exact `http://localhost:<port>` is the loopback Docker-demo exception.
 It also needs one or two unique cookie-signing keys, a separate session HMAC
-pepper, and one or more configured principals scoped to existing inboxes.
-Password values are stored only as exact-profile Argon2id PHC hashes.
+pepper, one or more configured principals scoped to existing inboxes, and the
+file-backed Google OAuth client ID and secret. The old Argon2id verifier field
+is retained only so version-1 secret documents continue to parse; it is not a
+login method and the HTTP password endpoint is disabled.
 
 Its read-only HTML pages are `/operator/login` and `/operator`; Phase 4e also
 adds `/operator/outbound-commands` for queued command history. Phase 4f adds
@@ -626,7 +630,7 @@ deliberately does not submit a dashboard login through HTTP; that would not
 prove the required HTTPS cookie behavior.
 
 Read [the Phase 4b operator dashboard guide](docs/operations/operator-dashboard-4b.md)
-before configuring a proxy, password hash, or session-key rotation. It records
+before configuring a proxy, Google OAuth client, or session-key rotation. It records
 the current limits: no self-service accounts, role model, audit trail,
 production TLS proof, cross-instance rate-limit proof, or provider delivery.
 The

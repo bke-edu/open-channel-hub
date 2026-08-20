@@ -96,6 +96,7 @@ h2 { font-size: clamp(1.8rem, 1.45rem + 1.8vw, 2.65rem); line-height: 1.05; }
 h3 { font-size: 1.18rem; line-height: 1.15; }
 .lede, .scope-bar p, .header-subtitle { color: var(--ink-soft); line-height: 1.58; }
 .login-form { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
+.login-security-note { color: var(--ink-soft); line-height: 1.58; margin: var(--space-5) 0 var(--space-4); }
 label { display: grid; gap: var(--space-2); font-weight: 650; }
 input, select, textarea { background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-small); min-height: 2.75rem; padding: 0.58rem 0.7rem; }
 textarea { min-height: 7.5rem; resize: vertical; }

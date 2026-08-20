@@ -12,7 +12,7 @@ import type { Channel, ConnectorCapabilityId, ConnectorTier } from '@open-channe
 
 import type { DashboardGoogleOAuthClient } from './dashboard-google-oauth.js';
 
-/** A server-side-only principal selected after password authentication. */
+/** A server-side-only principal selected after verified Google authentication. */
 export interface DashboardPrincipal {
   readonly id: string;
   readonly inboxIds: readonly string[];

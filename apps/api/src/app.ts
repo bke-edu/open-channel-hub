@@ -60,17 +60,29 @@ export const buildApp = async (options: BuildAppOptions = {}): Promise<FastifyIn
     trustProxy: false
   });
   const sourceOfferUrl = options.sourceOfferUrl ?? DEFAULT_SOURCE_OFFER_URL;
+  const dashboardUsesLoopbackHttp =
+    options.dashboard?.publicOrigin.startsWith('http://localhost:') ?? false;
 
   await app.register(helmet, {
     contentSecurityPolicy: {
+      // Helmet enables `upgrade-insecure-requests` by default in production.
+      // That is correct for a public HTTPS origin, but it breaks the explicit
+      // localhost HTTP demonstration by upgrading every form/navigation to a
+      // port where no TLS listener exists.
+      useDefaults: false,
       directives: {
+        'base-uri': ["'self'"],
         defaultSrc: ["'self'"],
-        baseUri: ["'self'"],
         frameAncestors: ["'none'"],
         formAction: ["'self'"],
+        'font-src': ["'self'", 'https:', 'data:'],
+        'img-src': ["'self'", 'data:'],
         objectSrc: ["'none'"],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'"]
+        'script-src-attr': ["'none'"],
+        styleSrc: ["'self'"],
+        'style-src-attr': ["'none'"],
+        ...(dashboardUsesLoopbackHttp ? {} : { 'upgrade-insecure-requests': [] })
       }
     },
     frameguard: { action: 'deny' },

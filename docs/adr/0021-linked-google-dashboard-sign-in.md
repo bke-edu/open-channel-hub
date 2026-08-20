@@ -7,7 +7,7 @@
 ## Context
 
 The operator dashboard previously accepted only configured local principal IDs
-and Argon2id password hashes. The owner also operates an approved Google OAuth
+and Argon2id password hashes retained for configuration compatibility. The owner also operates an approved Google OAuth
 client in the adjacent 360Connect development service and needs one low-friction
 way to sign in to the dashboard without creating a general public account
 system.
@@ -21,7 +21,7 @@ store.
 
 ### Enable Google only from two file-backed secret values
 
-Google sign-in is optional. It is enabled only when both
+Google sign-in is the only dashboard login. It is enabled only when both
 `GOOGLE_OAUTH_CLIENT_ID_FILE` and `GOOGLE_OAUTH_CLIENT_SECRET_FILE` are valid,
 distinct absolute files and a runtime `dashboard` is configured. Docker Compose
 mounts the two values as separate read-only secret files; neither value enters
@@ -89,7 +89,7 @@ HMACed.
 The dashboard session and temporary OAuth transaction cookies use
 `Secure`, `HttpOnly`, `Path=/`, and `SameSite=Lax`. Lax is required for a
 top-level Google callback to return the cookies. It does not weaken dashboard
-writes: password login, Google linking, logout, reply-intent recording, and
+writes: Google-only login, Google linking, logout, reply-intent recording, and
 Telegram delivery authorization retain their exact-Origin and anti-forgery
 checks.
 

@@ -48,6 +48,24 @@ const dashboardConnectionForTest = (): DashboardConnection =>
     tier: 'OFFICIAL' as const
   });
 
+const defaultGoogleAuthenticationForTest = (): DashboardGoogleAuthentication =>
+  Object.freeze({
+    client: Object.freeze({
+      createAuthorizationUrl: ({ state }: Readonly<{ state: string }>) =>
+        `https://accounts.example.test/authorize?state=${encodeURIComponent(state)}`,
+      exchangeAuthorizationCode: async () =>
+        Object.freeze({
+          email: 'linked@example.test',
+          subject: 'synthetic-default-google-subject'
+        }),
+      subjectHmac: () => 'a'.repeat(64)
+    }),
+    identityStore: Object.freeze({
+      bind: vi.fn(async () => Object.freeze({ kind: 'created' as const })),
+      findPrincipalId: vi.fn(async () => 'support-agent')
+    })
+  });
+
 describe('dashboard routes', () => {
   const applications: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -207,6 +225,34 @@ describe('dashboard routes', () => {
     expect(googleExchange).toHaveBeenCalledOnce();
   });
 
+  it('keeps the local HTTP Google flow browser-compatible without HTTPS-only cookies or CSP upgrades', async () => {
+    const harness = await createHarness({ publicOrigin: 'http://localhost:3460' });
+    applications.push(harness.app);
+
+    const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
+    const loginCsrfCookie = cookieFrom(login, '__Host-och_dashboard_login_csrf');
+
+    expect(login.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
+    expect(loginCsrfCookie).not.toContain('Secure');
+
+    const start = await harness.app.inject({ method: 'GET', url: '/operator/auth/google/login' });
+    const transactionCookie = cookieFrom(start, '__Host-och_dashboard_google_oauth');
+    const state = new URL(
+      start.headers.location ?? 'https://invalid.example.test'
+    ).searchParams.get('state');
+
+    expect(transactionCookie).not.toContain('Secure');
+
+    const callback = await harness.app.inject({
+      headers: { cookie: cookiePair(transactionCookie) },
+      method: 'GET',
+      url: `/operator/auth/google/callback?code=synthetic-google-code&state=${state}`
+    });
+
+    expect(callback.statusCode).toBe(303);
+    expect(cookieHeaderValues(callback).join('\n')).not.toContain('Secure');
+  });
+
   it('does not create a dashboard account or session for an unlinked verified Google identity', async () => {
     const googleAuthentication: DashboardGoogleAuthentication = Object.freeze({
       client: Object.freeze({
@@ -253,7 +299,7 @@ describe('dashboard routes', () => {
         exchangeAuthorizationCode: googleExchange,
         subjectHmac: () => 'c'.repeat(64)
       }),
-      identityStore: Object.freeze({ bind, findPrincipalId: vi.fn(async () => undefined) })
+      identityStore: Object.freeze({ bind, findPrincipalId: vi.fn(async () => 'support-agent') })
     });
     const harness = await createHarness({ googleAuthentication });
     applications.push(harness.app);
@@ -309,7 +355,7 @@ describe('dashboard routes', () => {
       principalId: 'support-agent',
       subjectHmac: expect.stringMatching(/^[a-f0-9]{64}$/)
     });
-    expect(googleExchange).toHaveBeenCalledOnce();
+    expect(googleExchange).toHaveBeenCalledTimes(2);
   });
 
   it('binds the one configured verified Google email on first sign-in without a password bridge', async () => {
@@ -838,45 +884,22 @@ describe('dashboard routes', () => {
     applications.push(harness.app);
 
     const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
-    const loginCookie = cookieFrom(login, '__Host-och_dashboard_login_csrf');
-    const loginCsrf = hiddenCsrf(login.body);
 
     expect(login.statusCode).toBe(200);
     expect(login.headers['cache-control']).toBe('no-store');
     expect(login.headers['content-security-policy']).toContain("form-action 'self'");
-    expect(loginCookie).toContain('HttpOnly');
-    expect(loginCookie).toContain('Secure');
-    expect(loginCookie).toContain('SameSite=Strict');
-    expect(loginCookie).toContain('Path=/');
-    expect(loginCookie).not.toContain('Domain=');
+    expect(login.headers['content-security-policy']).toContain('upgrade-insecure-requests');
+    expect(login.body).toContain('Đăng nhập bằng Google');
+    expect(login.body).not.toContain('Mật khẩu');
+    expect(login.body).not.toContain('/operator/session');
 
-    const session = await harness.app.inject({
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        cookie: cookiePair(loginCookie),
-        origin: PUBLIC_ORIGIN
-      },
-      method: 'POST',
-      payload: new URLSearchParams({
-        csrf: loginCsrf,
-        password: 'synthetic dashboard password',
-        principal: 'support-agent'
-      }).toString(),
-      url: '/operator/session'
-    });
-    const sessionCookie = cookieFrom(session, '__Host-och_dashboard_session');
-
-    expect(session.statusCode).toBe(303);
-    expect(session.headers.location).toBe('/operator');
+    const sessionCookie = await loginAndGetSessionCookie(harness.app);
     expect(sessionCookie).toContain('HttpOnly');
     expect(sessionCookie).toContain('Secure');
     expect(sessionCookie).toContain('SameSite=Lax');
     expect(sessionCookie).toContain('Path=/');
     expect(sessionCookie).not.toContain(SUPPORT_INBOX_TOKEN);
     expect(harness.store.create).toHaveBeenCalledOnce();
-    expect(JSON.stringify(harness.store.create.mock.calls)).not.toContain(
-      'synthetic dashboard password'
-    );
 
     const dashboard = await harness.app.inject({
       headers: { cookie: cookiePair(sessionCookie) },
@@ -915,26 +938,17 @@ describe('dashboard routes', () => {
     const harness = await createHarness({ supportRead });
     applications.push(harness.app);
 
-    const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
-    const loginCookie = cookieFrom(login, '__Host-och_dashboard_login_csrf');
-    const loginCsrf = hiddenCsrf(login.body);
-
     const originFailure = await harness.app.inject({
       headers: {
         'content-type': 'application/x-www-form-urlencoded',
-        cookie: cookiePair(loginCookie),
         origin: 'https://attacker.example.test'
       },
       method: 'POST',
-      payload: new URLSearchParams({
-        csrf: loginCsrf,
-        password: 'synthetic dashboard password',
-        principal: 'support-agent'
-      }).toString(),
+      payload: 'csrf=stale&principal=support-agent&password=stale',
       url: '/operator/session'
     });
 
-    expect(originFailure.statusCode).toBe(403);
+    expect(originFailure.statusCode).toBe(404);
     expect(harness.store.create).not.toHaveBeenCalled();
 
     const sessionCookie = await loginAndGetSessionCookie(harness.app);
@@ -959,40 +973,17 @@ describe('dashboard routes', () => {
     expect(harness.historyRead).not.toHaveBeenCalled();
   });
 
-  it('fails fast before Argon2 when a concurrent login burst exceeds the verifier cap', async () => {
+  it('rejects the removed password login endpoint', async () => {
     const harness = await createHarness();
     applications.push(harness.app);
-    const forms = await Promise.all(
-      Array.from({ length: 3 }, async () => {
-        const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
+    const response = await harness.app.inject({
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      method: 'POST',
+      payload: 'csrf=stale&principal=support-agent&password=stale',
+      url: '/operator/session'
+    });
 
-        return Object.freeze({
-          cookie: cookiePair(cookieFrom(login, '__Host-och_dashboard_login_csrf')),
-          csrf: hiddenCsrf(login.body)
-        });
-      })
-    );
-
-    const responses = await Promise.all(
-      forms.map(async (form) =>
-        harness.app.inject({
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded',
-            cookie: form.cookie,
-            origin: PUBLIC_ORIGIN
-          },
-          method: 'POST',
-          payload: new URLSearchParams({
-            csrf: form.csrf,
-            password: 'wrong synthetic dashboard password',
-            principal: 'support-agent'
-          }).toString(),
-          url: '/operator/session'
-        })
-      )
-    );
-
-    expect(responses.map((response) => response.statusCode).sort()).toEqual([401, 401, 429]);
+    expect(response.statusCode).toBe(404);
     expect(harness.store.create).not.toHaveBeenCalled();
   });
 
@@ -1555,6 +1546,7 @@ const createHarness = async (
     telegramDeliveryAuthorizationRecord?: TelegramDeliveryAuthorizationRecord;
     supportRead?: ReturnType<typeof vi.fn>;
     supportConnectionIds?: readonly string[];
+    publicOrigin?: string;
   }> = {}
 ): Promise<
   Readonly<{
@@ -1660,10 +1652,8 @@ const createHarness = async (
       principalId === principal.id
         ? Object.freeze([...(options.dashboardConnections ?? [dashboardConnection])])
         : Object.freeze([]),
-    ...(options.googleAuthentication === undefined
-      ? {}
-      : { googleAuthentication: options.googleAuthentication }),
-    publicOrigin: PUBLIC_ORIGIN,
+    googleAuthentication: options.googleAuthentication ?? defaultGoogleAuthenticationForTest(),
+    publicOrigin: options.publicOrigin ?? PUBLIC_ORIGIN,
     sessionCookieSigningKeys: Object.freeze([
       'synthetic_dashboard_cookie_signing_key_current_012345678'
     ]),
@@ -1739,24 +1729,19 @@ const createSessionStore = (): DashboardSessionStore &
 const loginAndGetSessionCookie = async (
   app: Awaited<ReturnType<typeof buildApp>>
 ): Promise<string> => {
-  const login = await app.inject({ method: 'GET', url: '/operator/login' });
-  const loginCookie = cookieFrom(login, '__Host-och_dashboard_login_csrf');
+  const start = await app.inject({ method: 'GET', url: '/operator/auth/google/login' });
+  const transactionCookie = cookieFrom(start, '__Host-och_dashboard_google_oauth');
+  const state = new URL(start.headers.location ?? 'https://invalid.example.test').searchParams.get(
+    'state'
+  );
   const response = await app.inject({
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      cookie: cookiePair(loginCookie),
-      origin: PUBLIC_ORIGIN
-    },
-    method: 'POST',
-    payload: new URLSearchParams({
-      csrf: hiddenCsrf(login.body),
-      password: 'synthetic dashboard password',
-      principal: 'support-agent'
-    }).toString(),
-    url: '/operator/session'
+    headers: { cookie: cookiePair(transactionCookie) },
+    method: 'GET',
+    url: `/operator/auth/google/callback?code=synthetic-google-code&state=${state}`
   });
 
   expect(response.statusCode).toBe(303);
+  expect(response.headers.location).toBe('/operator');
   return cookieFrom(response, '__Host-och_dashboard_session');
 };
 

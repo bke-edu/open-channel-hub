@@ -1,14 +1,14 @@
 # Google sign-in for the operator dashboard
 
-This optional feature lets an already configured dashboard principal sign in
-with Google. A deployment may name one exact verified Google email as a
-one-time first-sign-in bootstrap for one existing principal. It is not public
-Google registration and does not create a dashboard principal, inbox
-permission, provider connection, or provider credential.
+The operator dashboard uses Google-only sign-in for an already configured
+principal. A deployment may name one exact verified Google email as a one-time
+first-sign-in bootstrap for one existing principal. It is not public Google
+registration and does not create a dashboard principal, inbox permission,
+provider connection, or provider credential.
 
 ## Prerequisites
 
-- The Phase 4b dashboard is already configured with a public HTTPS
+- The dashboard is already configured with a public HTTPS
   `dashboard.publicOrigin`, configured inboxes, a configured principal, and
   PostgreSQL. For a loopback-only Docker demonstration, the one deliberate
   exception is an exact `http://localhost:<port>` origin; raw IP addresses and
@@ -84,17 +84,19 @@ a multi-user invitation system. Remove it after the first successful sign-in
 if the deployment does not need it again; the durable HMAC link continues to
 work.
 
-## Optional manual Google link
+## Google-only browser flow
 
-1. Open `/operator/login` and sign in with the already configured principal
-   ID and password.
-2. Select **Liên kết Google** in the dashboard header.
-3. Complete Google's account selection and consent screen.
-4. The callback returns to `/operator`. A generic failure means no identity
+1. Open `/operator/login` and select **Đăng nhập bằng Google**.
+2. Complete Google's account selection and consent screen.
+3. The callback returns to `/operator`. A generic failure means no identity
    link was written; do not infer whether an account exists or is linked to
    someone else.
-5. Sign out. The login page now lets that Google account use
-   **Đăng nhập bằng Google**.
+
+The dashboard no longer accepts a principal ID or password form. The old
+`POST /operator/session` path returns `404` so stale bookmarks cannot become a
+second authentication mechanism. The header's Google-link action remains
+available only as an account-recovery/rebinding entry point for an already
+authenticated session.
 
 The optional manual link has three independent checks: the current signed dashboard
 session, the exact configured Origin, and the dashboard anti-forgery token.
@@ -118,10 +120,13 @@ immutable relationship.
 ## Session and failure behavior
 
 The browser session and temporary OAuth transaction cookie are signed,
-`Secure`, `HttpOnly`, and `SameSite=Lax`. Lax permits the top-level redirect
-from Google to send the cookie back to the dashboard callback. Every
-state-changing dashboard form continues to require the exact Origin and its
-anti-forgery token.
+`HttpOnly`, and `SameSite=Lax`. Public HTTPS deployments also set `Secure`.
+The deliberate `http://localhost:<port>` demonstration exception omits
+`Secure`, and its CSP does not upgrade the loopback origin to HTTPS; this keeps
+the real browser flow usable without weakening any public HTTPS deployment.
+Lax permits the top-level redirect from Google to send the cookie back to the
+dashboard callback. Every state-changing dashboard form continues to require
+the exact Origin and its anti-forgery token.
 
 The PKCE transaction lives only in process for ten minutes and is consumed
 once. Restarting the API, waiting too long, replaying a callback, tampering

@@ -238,8 +238,9 @@ top-level Google callback; dashboard writes still require the exact configured
 Origin and an anti-forgery token. The supplied Compose runner is loopback HTTP
 and intentionally omits `dashboard`; a browser login must be deployed behind a
 real TLS proxy. Follow the
-[Phase 4b operator dashboard guide](operator-dashboard-4b.md) for password
-hashing, proxy controls, session rotation, and limits. The Phase 4e source
+[Phase 4b operator dashboard guide](operator-dashboard-4b.md) for Google OAuth,
+proxy controls, session rotation, and limits. The dashboard has no password
+login route. The Phase 4e source
 adds no configuration field: it uses the same signed session to render one
 assigned inbox's queued history with no browser bearer or outbound action. The
 The verified Phase 4f source adds only `replyIntentInboxIds` and uses it to

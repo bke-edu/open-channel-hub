@@ -2,7 +2,8 @@
 
 Phase 4b adds an optional, read-only-by-default browser dashboard. It renders
 HTML on the server at `/operator`; the browser receives no inbox bearer,
-provider credential, password hash, or JavaScript API client. The separate
+provider credential, password hash, or JavaScript API client. Google is the
+only dashboard login. The separate
 verified Phase 4f source adds a deliberately narrower opt-in source-bound
 intent form. This document describes the implemented boundaries, not a
 claim that a TLS proxy or production deployment has been verified.
@@ -28,8 +29,9 @@ Before enabling it, all of the following must already be true:
   address or a local/private hostname. The only local exception is exact
   `http://localhost:<port>` for a loopback Docker demonstration.
 - The proxy preserves `Origin`, `Cookie`, and `Set-Cookie`, does not log
-  passwords or cookies, and rate-limits `POST /operator/session`. The
-  application's small in-process login throttle is a supplement, not a
+  Google authorization data or cookies, and rate-limits the Google login and
+  callback routes. OAuth state, nonce, PKCE, and the verified ID token are
+  checked by the application; local controls are a supplement, not a
   cross-instance rate-limit service.
 - The API remains protected behind the proxy as appropriate for the
   deployment. Do not expose PostgreSQL. Do not rely on `X-Forwarded-*` to make
@@ -67,7 +69,7 @@ following is a shape example, not usable configuration:
     "principals": [
       {
         "id": "support-agent",
-        "passwordHash": "<Argon2id PHC value>",
+        "passwordHash": "<legacy Argon2id PHC value retained for v1 parsing>",
         "inboxIds": ["support-inbox"],
         "replyIntentInboxIds": ["support-inbox"],
         "telegramDeliveryAuthorizationInboxIds": ["support-inbox"]
@@ -102,9 +104,11 @@ The validator requires the following:
   record one immutable Telegram approval fact for an already eligible queued
   command. It neither creates a reply intent nor gives the browser a sender,
   credential, retry, or provider-call capability.
-- `passwordHash` is an Argon2id PHC version-19 value using exactly
-  `m=19456,t=2,p=1`. The supplied password command creates this required
-  profile; hashes with another cost profile are rejected.
+- `passwordHash` remains a required v1 configuration field for compatibility
+  with existing secret documents, but no HTTP route accepts it as an
+  authentication method and no new login flow depends on it. Google is the
+  only dashboard login. The value still uses the exact Argon2id PHC profile
+  `m=19456,t=2,p=1` and must never be a plaintext password.
 
 The entire document remains a secret, including password hashes, signing keys,
 and the pepper. In Compose, store its unpadded base64url form only in the
@@ -114,19 +118,22 @@ deployment, mount the raw secret document outside the repository. Do not put
 any of it in Git, shell history, issue text, screenshots, browser source, or
 application logs.
 
-## Create a password hash without putting a password on a command line
+## Keep the legacy configuration field valid
 
-Build the CLI, then use a private terminal that supports hidden input:
+Existing v1 documents still carry a verifier field even though the browser no
+longer uses it. New deployments should reuse a valid existing verifier. If a
+validator requires regenerating that legacy field, use a private terminal that
+supports hidden input:
 
 ```bash
 npm run build
-read -r -s -p 'Dashboard password: ' DASHBOARD_PASSWORD
+read -r -s -p 'Compatibility value: ' DASHBOARD_PASSWORD
 printf '\n'
 printf %s "$DASHBOARD_PASSWORD" | npm run dashboard:password:hash
 unset DASHBOARD_PASSWORD
 ```
 
-Type a unique password at the hidden prompt. It must be valid UTF-8, contain
+Type a unique compatibility value at the hidden prompt. It must be valid UTF-8, contain
 12–512 bytes, and contain neither a newline nor a NUL byte. The command prints
 only an Argon2id PHC hash. Copy that hash directly into the private secret
 document through an editor; never use a password or hash as a shell argument,
@@ -134,19 +141,25 @@ environment variable, commit, issue, screenshot, or log value.
 
 ## Browser operation
 
-Open `https://your-host/operator/login`. The login form asks for one configured
-principal ID and its password. On success the server issues a signed,
-`Secure`, `HttpOnly`, `SameSite=Lax` `__Host-och_dashboard_session` cookie
-and redirects to `/operator`.
+Open `https://your-host/operator/login`. The page offers one authentication
+path: **Đăng nhập bằng Google**. On success the server issues a signed,
+`Secure`, `HttpOnly`, `SameSite=Lax` `__Host-och_dashboard_session` cookie and
+redirects to `/operator`. Password login is disabled; `POST /operator/session`
+returns `404` for stale forms.
 
-When both file-backed Google OAuth values are configured, the same page also
-shows **Đăng nhập bằng Google**. Google does not create a principal: an
-already authenticated local principal must first select **Liên kết Google**.
-The callback, identity retention, exact redirect URI, and recovery procedure
-are documented in the [Google dashboard sign-in guide](dashboard-google-sign-in.md).
+Google does not create a principal. A configured `dashboard.googleBootstrap`
+entry may bind one verified email to one already configured principal on first
+sign-in. The callback, identity retention, exact redirect URI, and recovery
+procedure are documented in the [Google dashboard sign-in guide](dashboard-google-sign-in.md).
 `SameSite=Lax` is limited to the top-level Google callback; every state-changing
 dashboard form still requires the exact configured Origin and a matching
 anti-forgery token.
+
+The deliberate `http://localhost:<port>` demonstration exception omits the
+`Secure` cookie flag and the CSP HTTPS-upgrade directive. Public deployments
+remain HTTPS-only and keep both controls. There is no password form or
+password authentication route: `POST /operator/session` returns `404` for
+stale forms.
 
 The first authorized inbox is shown by default. The page can switch only among
 the signed-in principal's configured inboxes. It uses the same server-owned
@@ -192,17 +205,17 @@ eight hours from issue time.
 
 ## Authentication and session boundary
 
-- Login and logout require the exact browser `Origin` matching `publicOrigin`,
-  a signed cookie, and a hidden anti-forgery token. Invalid or missing login
-  credentials receive a generic response.
+- Google callback login consumes a signed, one-time PKCE transaction. Logout
+  requires the exact browser `Origin` matching `publicOrigin`, a signed cookie,
+  and a hidden anti-forgery token. Invalid or missing Google credentials receive
+  a generic response.
 - The server stores only HMACs of random session and anti-forgery tokens in
   `open_channel_hub.dashboard_sessions`. It never stores a raw browser token,
   dashboard password, inbox bearer, provider credential, or configured inbox
   membership in that table.
-- Five aggregate failed password attempts inside five minutes trigger a
-  ten-minute in-process block. It deliberately does not record an IP address,
-  password, or raw form value. Configure edge rate limiting before exposing
-  the login route to untrusted networks.
+- Google Console redirect-URI administration and the public TLS proxy remain
+  deployment responsibilities. The local demonstration is intentionally
+  loopback-only and is not proof of public HTTPS behavior.
 - The Phase 4f form additionally requires an active signed session,
   exact `Origin`, matching anti-forgery value, and strict non-duplicated form
   body before it resolves the explicit write grant. Its local guard permits at
@@ -210,10 +223,10 @@ eight hours from issue time.
   guard is not shared across processes or hosts; the proxy must still
   rate-limit `POST /operator/reply-intents` and omit form/cookie/message values
   from logs.
-- Changing a password hash does not itself revoke an existing session. Rotate
-  `sessionIdPepper` and recreate the API when an immediate forced logout is
-  required. This invalidates every existing dashboard session, so coordinate
-  it with operators.
+- Rotating the Google client secret requires a separate reviewed identity-link
+  transition because subject HMACs are derived inside the OAuth-client boundary.
+  Rotate `sessionIdPepper` and recreate the API when an immediate forced logout
+  is required. This invalidates every existing dashboard session.
 
 ## Rotate session keys safely
 

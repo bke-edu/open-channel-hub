@@ -263,6 +263,13 @@ try {
         const dashboardConfiguration = configuredConnectionConfiguration?.dashboard;
 
         if (dashboardConfiguration !== undefined) {
+          if (environment.dashboardGoogleOAuth === undefined) {
+            // The dashboard has one authentication path: verified Google
+            // identity. Refuse a password-only deployment instead of
+            // starting a page that can never be entered safely.
+            throw new EnvironmentConfigurationError();
+          }
+
           const dashboardGoogleIdentityStore = postgres?.dashboardGoogleIdentityStore;
           const dashboardSessionStore = postgres?.dashboardSessionStore;
 

@@ -57,7 +57,7 @@ export interface DashboardGuidePageInput {
   readonly selectedInboxId: string;
 }
 
-/** Renders a no-script login page with an explicit anti-forgery form token. */
+/** Renders the Google-only no-script login page. */
 export const renderDashboardLoginPage = (input: DashboardLoginPageInput): string =>
   renderDocument({
     body: `
@@ -75,23 +75,11 @@ export const renderDashboardLoginPage = (input: DashboardLoginPageInput): string
                     : 'Thông tin đăng nhập không hợp lệ.'
                 }</p>`
           }
-          <form action="/operator/session" method="post" class="login-form">
-            <input type="hidden" name="csrf" value="${escapeAttribute(input.csrfToken)}">
-            <label>
-              <span>Mã người vận hành</span>
-              <input autocomplete="username" maxlength="128" name="principal" required>
-            </label>
-            <label>
-              <span>Mật khẩu</span>
-              <input autocomplete="current-password" maxlength="512" name="password" required type="password">
-            </label>
-            <button type="submit">Mở bảng tín hiệu</button>
-          </form>
           ${
             input.googleAuthenticationEnabled
-              ? `<p class="login-separator" aria-hidden="true">hoặc</p>
+              ? `<p class="login-security-note">Quyền truy cập được xác minh bởi Google. Open Channel Hub không nhận hay lưu mật khẩu vận hành.</p>
                  <a class="google-sign-in" href="/operator/auth/google/login">Đăng nhập bằng Google</a>`
-              : ''
+              : `<p class="notice" role="alert">Đăng nhập Google chưa được cấu hình cho máy chủ này.</p>`
           }
         </section>
       </main>`
