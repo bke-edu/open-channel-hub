@@ -27,9 +27,9 @@ import {
 import { createDashboardReplyIntentThrottle } from './dashboard-reply-intent-throttle.js';
 import { dashboardStyle } from './dashboard-style.js';
 
-const DASHBOARD_LOGIN_CSRF_COOKIE = '__Host-och_dashboard_login_csrf';
-const DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE = '__Host-och_dashboard_google_oauth';
-const DASHBOARD_SESSION_COOKIE = '__Host-och_dashboard_session';
+const DASHBOARD_LOGIN_CSRF_COOKIE = 'och_dashboard_login_csrf';
+const DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE = 'och_dashboard_google_oauth';
+const DASHBOARD_SESSION_COOKIE = 'och_dashboard_session';
 const DEFAULT_PAGE_SIZE = 50;
 const FORM_BODY_LIMIT = 32 * 1_024;
 const MAX_CURSOR_LENGTH = 512;
@@ -224,7 +224,7 @@ export const registerDashboardRoutes = async (
       let authenticated: AuthenticatedDashboardSession | undefined;
 
       try {
-        authenticated = await readDashboardSession(request, manager);
+        authenticated = await readDashboardSession(request, manager, secureCookies);
       } catch {
         return sendDashboardFailure(reply.code(500));
       }
@@ -250,7 +250,10 @@ export const registerDashboardRoutes = async (
 
     app.get('/operator/auth/google/callback', async (request, reply) => {
       const callback = parseGoogleCallback(request.query);
-      const transactionId = readSignedCookie(request, DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE);
+      const transactionId = readSignedCookie(
+        request,
+        dashboardCookieName(DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE, secureCookies)
+      );
       clearGoogleTransactionCookie(reply, secureCookies);
 
       if (callback === undefined || transactionId === undefined) {
@@ -339,7 +342,7 @@ export const registerDashboardRoutes = async (
 
           const issued = await manager.createSession(principalId);
           reply.setCookie(
-            DASHBOARD_SESSION_COOKIE,
+            dashboardCookieName(DASHBOARD_SESSION_COOKIE, secureCookies),
             `${issued.sessionToken}.${issued.csrfToken}`,
             signedSessionCookieOptions(secureCookies)
           );
@@ -382,7 +385,7 @@ export const registerDashboardRoutes = async (
     }
 
     const form = parseForm(request.body, logoutFormSchema);
-    const authenticated = await readDashboardSession(request, manager);
+    const authenticated = await readDashboardSession(request, manager, secureCookies);
 
     if (
       form === undefined ||
@@ -413,7 +416,7 @@ export const registerDashboardRoutes = async (
     let authenticated: AuthenticatedDashboardSession | undefined;
 
     try {
-      authenticated = await readDashboardSession(request, manager);
+      authenticated = await readDashboardSession(request, manager, secureCookies);
     } catch {
       return sendDashboardFailure(reply.code(500));
     }
@@ -486,7 +489,7 @@ export const registerDashboardRoutes = async (
       let authenticated: AuthenticatedDashboardSession | undefined;
 
       try {
-        authenticated = await readDashboardSession(request, manager);
+        authenticated = await readDashboardSession(request, manager, secureCookies);
       } catch {
         return sendDashboardFailure(reply.code(500));
       }
@@ -792,7 +795,7 @@ const sendLoginPage = (
   const csrfToken = manager.createLoginCsrfToken();
 
   reply.setCookie(
-    DASHBOARD_LOGIN_CSRF_COOKIE,
+    dashboardCookieName(DASHBOARD_LOGIN_CSRF_COOKIE, secureCookies),
     csrfToken,
     signedLoginCsrfCookieOptions(secureCookies)
   );
@@ -819,15 +822,21 @@ const redirectDashboard = (reply: FastifyReply, location: string): FastifyReply 
   reply.header('Cache-Control', 'no-store').redirect(location, 303);
 
 const clearSessionCookie = (reply: FastifyReply, secureCookies: boolean): void => {
-  reply.clearCookie(DASHBOARD_SESSION_COOKIE, clearSessionCookieOptions(secureCookies));
+  reply.clearCookie(
+    dashboardCookieName(DASHBOARD_SESSION_COOKIE, secureCookies),
+    clearSessionCookieOptions(secureCookies)
+  );
 };
 
 const clearGoogleTransactionCookie = (reply: FastifyReply, secureCookies: boolean): void => {
   reply.clearCookie(
-    DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE,
+    dashboardCookieName(DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE, secureCookies),
     clearSessionCookieOptions(secureCookies)
   );
 };
+
+const dashboardCookieName = (baseName: string, secureCookies: boolean): string =>
+  secureCookies ? `__Host-${baseName}` : baseName;
 
 const hasExpectedOrigin = (request: FastifyRequest, publicOrigin: string): boolean =>
   typeof request.headers.origin === 'string' && request.headers.origin === publicOrigin;
@@ -846,9 +855,11 @@ const readSignedCookie = (request: FastifyRequest, name: string): string | undef
 
 const readDashboardSession = async (
   request: FastifyRequest,
-  manager: DashboardSessionManager
+  manager: DashboardSessionManager,
+  secureCookies: boolean
 ): Promise<AuthenticatedDashboardSession | undefined> => {
-  const sessionCookieValue = readSignedCookie(request, DASHBOARD_SESSION_COOKIE);
+  const sessionCookieName = dashboardCookieName(DASHBOARD_SESSION_COOKIE, secureCookies);
+  const sessionCookieValue = readSignedCookie(request, sessionCookieName);
 
   if (sessionCookieValue === undefined) {
     return undefined;
@@ -877,7 +888,8 @@ const touchDashboardSession = async (
   manager: DashboardSessionManager,
   secureCookies: boolean
 ): Promise<AuthenticatedDashboardSession | undefined> => {
-  const sessionCookieValue = readSignedCookie(request, DASHBOARD_SESSION_COOKIE);
+  const sessionCookieName = dashboardCookieName(DASHBOARD_SESSION_COOKIE, secureCookies);
+  const sessionCookieValue = readSignedCookie(request, sessionCookieName);
 
   if (sessionCookieValue === undefined) {
     return undefined;
@@ -895,11 +907,11 @@ const touchDashboardSession = async (
     return undefined;
   }
 
-  const shouldRenewCookie = shouldRenewSignedCookie(request, DASHBOARD_SESSION_COOKIE);
+  const shouldRenewCookie = shouldRenewSignedCookie(request, sessionCookieName);
 
   if (shouldRenewCookie) {
     reply.setCookie(
-      DASHBOARD_SESSION_COOKIE,
+      sessionCookieName,
       sessionCookieValue,
       signedSessionCookieOptions(secureCookies)
     );
@@ -986,7 +998,7 @@ const startGoogleAuthorization = (
     });
 
     reply.setCookie(
-      DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE,
+      dashboardCookieName(DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE, secureCookies),
       transaction.id,
       signedGoogleTransactionCookieOptions(secureCookies)
     );

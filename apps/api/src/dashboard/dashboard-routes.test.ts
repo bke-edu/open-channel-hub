@@ -230,18 +230,21 @@ describe('dashboard routes', () => {
     applications.push(harness.app);
 
     const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
-    const loginCsrfCookie = cookieFrom(login, '__Host-och_dashboard_login_csrf');
+    const loginCsrfCookie = cookieFrom(login, 'och_dashboard_login_csrf');
 
     expect(login.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
+    expect(loginCsrfCookie).toContain('och_dashboard_login_csrf=');
+    expect(loginCsrfCookie).not.toContain('__Host-');
     expect(loginCsrfCookie).not.toContain('Secure');
 
     const start = await harness.app.inject({ method: 'GET', url: '/operator/auth/google/login' });
-    const transactionCookie = cookieFrom(start, '__Host-och_dashboard_google_oauth');
+    const transactionCookie = cookieFrom(start, 'och_dashboard_google_oauth');
     const state = new URL(
       start.headers.location ?? 'https://invalid.example.test'
     ).searchParams.get('state');
 
     expect(transactionCookie).not.toContain('Secure');
+    expect(transactionCookie).not.toContain('__Host-');
 
     const callback = await harness.app.inject({
       headers: { cookie: cookiePair(transactionCookie) },
@@ -250,6 +253,8 @@ describe('dashboard routes', () => {
     });
 
     expect(callback.statusCode).toBe(303);
+    expect(cookieHeaderValues(callback).join('\n')).toContain('och_dashboard_session=');
+    expect(cookieHeaderValues(callback).join('\n')).not.toContain('__Host-');
     expect(cookieHeaderValues(callback).join('\n')).not.toContain('Secure');
   });
 
