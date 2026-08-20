@@ -30,12 +30,11 @@ export const dashboardStyle = `
   --radius-panel: 0.25rem;
   --duration-fast: 160ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Segoe UI", "Noto Sans", Arial, sans-serif;
+  --font-body: "Segoe UI", "Noto Sans", Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     color-scheme: dark;
     --paper: oklch(31.5% 0.018 55);
     --paper-raised: oklch(36.5% 0.02 56);
@@ -55,7 +54,6 @@ export const dashboardStyle = `
     --warning: oklch(78% 0.13 78);
     --danger: oklch(72% 0.13 28);
     --shadow: 0 1px 0 oklch(12% 0.015 50 / 0.45), 0 18px 44px oklch(12% 0.015 50 / 0.24);
-  }
 }
 
 * { box-sizing: border-box; }
@@ -70,6 +68,8 @@ body {
   margin: 0;
   min-width: 20rem;
   -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+  letter-spacing: normal;
   text-rendering: optimizeLegibility;
 }
 body::before { background: var(--paper); content: ""; inset: 0; opacity: 0.08; pointer-events: none; position: fixed; z-index: 9999; }
@@ -90,7 +90,7 @@ code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .login-panel { border-top: 4px double var(--line-strong); padding: var(--space-5); position: relative; width: 100%; }
 .login-panel::before, .dashboard-header::before { background: var(--accent); content: ""; display: block; height: 0.22rem; left: 0; position: absolute; top: 0; width: 3.5rem; }
 .eyebrow { color: var(--accent); font-family: var(--font-body); font-size: 0.7rem; font-weight: 650; letter-spacing: 0.2em; line-height: 1.3; margin: 0 0 var(--space-2); text-transform: uppercase; }
-h1, h2, h3 { font-family: var(--font-display); font-weight: 650; letter-spacing: -0.04em; margin: 0; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.025em; margin: 0; text-wrap: balance; }
 h1 { font-size: clamp(2.7rem, 1.8rem + 4.8vw, 5.4rem); line-height: 0.92; }
 h2 { font-size: clamp(1.8rem, 1.45rem + 1.8vw, 2.65rem); line-height: 1.05; }
 h3 { font-size: 1.18rem; line-height: 1.15; }
@@ -104,6 +104,12 @@ textarea { min-height: 7.5rem; resize: vertical; }
 .login-separator { color: var(--ink-faint); margin: var(--space-4) 0; text-align: center; }
 .google-sign-in { align-items: center; border: 1px solid var(--line-strong); display: flex; font-weight: 650; justify-content: center; min-height: 2.75rem; padding: 0.62rem 0.9rem; text-decoration: none; }
 .google-sign-in:hover { border-color: var(--accent); color: var(--accent-hover); }
+.theme-switcher { align-items: center; display: inline-flex; gap: 0.35rem; margin-top: var(--space-4); }
+.theme-switcher-label { color: var(--ink-faint); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.theme-switcher a { border: 1px solid var(--line); color: var(--ink-soft); display: inline-flex; min-height: 2.5rem; align-items: center; padding: 0.42rem 0.65rem; text-decoration: none; }
+.theme-switcher a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.theme-switcher a:hover { border-color: var(--accent); color: var(--accent-hover); }
+.theme-switcher-stacked { flex-wrap: wrap; }
 
 .dashboard-header { align-items: flex-start; border-bottom: 4px double var(--line-strong); display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5) 0 var(--space-5); position: relative; }
 .dashboard-header > div { min-width: 0; padding-top: var(--space-3); }
@@ -144,7 +150,7 @@ textarea { min-height: 7.5rem; resize: vertical; }
 .workflow-rail ol { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
 .workflow-step { align-items: baseline; border-left: 2px solid var(--line); display: grid; gap: var(--space-1) var(--space-2); grid-template-columns: 2.2rem minmax(0, 1fr); padding: var(--space-2) var(--space-3); }
 .workflow-step > span { color: var(--ink-faint); font-size: 0.72rem; font-weight: 750; }
-.workflow-step > strong { font-family: var(--font-display); font-size: 1rem; }
+.workflow-step > strong { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0; }
 .workflow-step > small { color: var(--ink-soft); font-size: 0.78rem; grid-column: 2; line-height: 1.4; }
 .workflow-active { background: var(--accent-soft); border-left-color: var(--accent); }
 .workflow-active > span, .workflow-active > strong { color: var(--accent); }

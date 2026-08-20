@@ -14,7 +14,8 @@ import {
   renderDashboardGuidePage,
   renderDashboardLoginPage,
   renderDashboardOutboundCommandHistoryPage,
-  renderDashboardPage
+  renderDashboardPage,
+  type DashboardTheme
 } from './dashboard-html.js';
 import {
   createDashboardSessionManager,
@@ -30,6 +31,7 @@ import { dashboardStyle } from './dashboard-style.js';
 const DASHBOARD_LOGIN_CSRF_COOKIE = 'och_dashboard_login_csrf';
 const DASHBOARD_GOOGLE_OAUTH_TRANSACTION_COOKIE = 'och_dashboard_google_oauth';
 const DASHBOARD_SESSION_COOKIE = 'och_dashboard_session';
+const DASHBOARD_THEME_COOKIE = 'och_dashboard_theme';
 const DEFAULT_PAGE_SIZE = 50;
 const FORM_BODY_LIMIT = 32 * 1_024;
 const MAX_CURSOR_LENGTH = 512;
@@ -116,6 +118,15 @@ const clearSessionCookieOptions = (secure: boolean) =>
     sameSite: 'lax' as const,
     secure
   });
+const themeCookieOptions = (secure: boolean) =>
+  Object.freeze({
+    httpOnly: true,
+    maxAge: 60 * 60 * 24 * 365,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure
+  });
+const themeQuerySchema = z.object({ return: z.enum(['login']).optional() }).strict();
 
 interface AuthenticatedDashboardSession {
   readonly csrfToken: string;
@@ -129,6 +140,7 @@ interface ResolvedDashboardPageRequest {
   readonly requestedCursor?: string;
   readonly selectedInbox: DashboardInbox;
   readonly selectedInboxId: string;
+  readonly theme: DashboardTheme;
 }
 
 /**
@@ -175,6 +187,25 @@ export const registerDashboardRoutes = async (
       .send(dashboardStyle)
   );
 
+  app.get<{ Params: { theme: string } }>('/operator/theme/:theme', async (request, reply) => {
+    const theme = parseDashboardTheme(request.params.theme);
+    const query = themeQuerySchema.safeParse(request.query);
+
+    if (theme === undefined || !query.success) {
+      return sendDashboardFailure(reply.code(400));
+    }
+
+    reply.setCookie(
+      dashboardCookieName(DASHBOARD_THEME_COOKIE, secureCookies),
+      theme,
+      themeCookieOptions(secureCookies)
+    );
+    return redirectDashboard(
+      reply,
+      query.data.return === 'login' ? '/operator/login' : '/operator'
+    );
+  });
+
   app.get('/operator/login', async (request, reply) => {
     const query = loginQuerySchema.safeParse(request.query);
 
@@ -183,7 +214,8 @@ export const registerDashboardRoutes = async (
       manager,
       query.success ? query.data.error : undefined,
       googleAuthentication !== undefined,
-      secureCookies
+      secureCookies,
+      readDashboardTheme(request, secureCookies)
     );
   });
 
@@ -380,7 +412,8 @@ export const registerDashboardRoutes = async (
         manager,
         'invalid',
         googleAuthentication !== undefined,
-        secureCookies
+        secureCookies,
+        readDashboardTheme(request, secureCookies)
       );
     }
 
@@ -584,7 +617,8 @@ export const registerDashboardRoutes = async (
             feature
               .findPrincipal(context.authenticated.session.principalId)
               ?.replyIntentInboxIds.includes(context.selectedInboxId) ?? false,
-          selectedInboxId: context.selectedInboxId
+          selectedInboxId: context.selectedInboxId,
+          theme: context.theme
         })
       );
     } catch {
@@ -614,7 +648,8 @@ export const registerDashboardRoutes = async (
         googleAuthenticationEnabled: googleAuthentication !== undefined,
         inboxes: context.availableInboxes,
         principalId: context.authenticated.session.principalId,
-        selectedInboxId: context.selectedInboxId
+        selectedInboxId: context.selectedInboxId,
+        theme: context.theme
       })
     );
   });
@@ -641,7 +676,8 @@ export const registerDashboardRoutes = async (
         googleAuthenticationEnabled: googleAuthentication !== undefined,
         inboxes: context.availableInboxes,
         principalId: context.authenticated.session.principalId,
-        selectedInboxId: context.selectedInboxId
+        selectedInboxId: context.selectedInboxId,
+        theme: context.theme
       })
     );
   });
@@ -693,6 +729,7 @@ export const registerDashboardRoutes = async (
               }),
           principalId: context.authenticated.session.principalId,
           selectedInboxId: context.selectedInboxId,
+          theme: context.theme,
           telegramDeliveryAuthorizationEnabled:
             feature
               .findPrincipal(context.authenticated.session.principalId)
@@ -781,7 +818,8 @@ const resolveDashboardPageRequest = async (
     availableInboxes,
     ...(query.data.cursor === undefined ? {} : { requestedCursor: query.data.cursor }),
     selectedInbox,
-    selectedInboxId
+    selectedInboxId,
+    theme: readDashboardTheme(request, secureCookies)
   });
 };
 
@@ -790,7 +828,8 @@ const sendLoginPage = (
   manager: DashboardSessionManager,
   message: 'invalid' | 'throttled' | undefined,
   googleAuthenticationEnabled: boolean,
-  secureCookies: boolean
+  secureCookies: boolean,
+  theme: DashboardTheme
 ): FastifyReply => {
   const csrfToken = manager.createLoginCsrfToken();
 
@@ -804,6 +843,7 @@ const sendLoginPage = (
     renderDashboardLoginPage({
       csrfToken,
       googleAuthenticationEnabled,
+      theme,
       ...(message === undefined ? {} : { message })
     })
   );
@@ -837,6 +877,19 @@ const clearGoogleTransactionCookie = (reply: FastifyReply, secureCookies: boolea
 
 const dashboardCookieName = (baseName: string, secureCookies: boolean): string =>
   secureCookies ? `__Host-${baseName}` : baseName;
+
+const parseDashboardTheme = (value: string): DashboardTheme | undefined => {
+  if (value === 'light' || value === 'dark') {
+    return value;
+  }
+
+  return undefined;
+};
+
+const readDashboardTheme = (request: FastifyRequest, secureCookies: boolean): DashboardTheme =>
+  parseDashboardTheme(
+    request.cookies[dashboardCookieName(DASHBOARD_THEME_COOKIE, secureCookies)] ?? ''
+  ) ?? 'light';
 
 const hasExpectedOrigin = (request: FastifyRequest, publicOrigin: string): boolean =>
   typeof request.headers.origin === 'string' && request.headers.origin === publicOrigin;

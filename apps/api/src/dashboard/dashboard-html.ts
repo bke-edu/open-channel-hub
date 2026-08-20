@@ -5,10 +5,13 @@ import type { OutboundReplyCommandHistoryEntry } from '@open-channel-hub/domain'
 
 import type { DashboardConnection } from './dashboard-feature.js';
 
+export type DashboardTheme = 'light' | 'dark';
+
 export interface DashboardLoginPageInput {
   readonly csrfToken: string;
   readonly googleAuthenticationEnabled: boolean;
   readonly message?: 'invalid' | 'throttled';
+  readonly theme: DashboardTheme;
 }
 
 export interface DashboardPageInput {
@@ -22,6 +25,7 @@ export interface DashboardPageInput {
   readonly principalId: string;
   readonly replyIntentEnabled: boolean;
   readonly selectedInboxId: string;
+  readonly theme: DashboardTheme;
 }
 
 export interface DashboardOutboundCommandHistoryPageInput {
@@ -35,6 +39,7 @@ export interface DashboardOutboundCommandHistoryPageInput {
   readonly principalId: string;
   readonly selectedInboxId: string;
   readonly telegramDeliveryAuthorizationEnabled: boolean;
+  readonly theme: DashboardTheme;
 }
 
 export interface DashboardConnectionsPageInput {
@@ -45,6 +50,7 @@ export interface DashboardConnectionsPageInput {
   readonly inboxes: readonly Readonly<{ id: string }>[];
   readonly principalId: string;
   readonly selectedInboxId: string;
+  readonly theme: DashboardTheme;
 }
 
 export interface DashboardGuidePageInput {
@@ -55,11 +61,13 @@ export interface DashboardGuidePageInput {
   readonly inboxes: readonly Readonly<{ id: string }>[];
   readonly principalId: string;
   readonly selectedInboxId: string;
+  readonly theme: DashboardTheme;
 }
 
 /** Renders the Google-only no-script login page. */
 export const renderDashboardLoginPage = (input: DashboardLoginPageInput): string =>
   renderDocument({
+    theme: input.theme,
     body: `
       <main class="login-shell" aria-labelledby="dashboard-title">
         <section class="login-panel">
@@ -78,7 +86,8 @@ export const renderDashboardLoginPage = (input: DashboardLoginPageInput): string
           ${
             input.googleAuthenticationEnabled
               ? `<p class="login-security-note">Quyền truy cập được xác minh bởi Google. Open Channel Hub không nhận hay lưu mật khẩu vận hành.</p>
-                 <a class="google-sign-in" href="/operator/auth/google/login">Đăng nhập bằng Google</a>`
+                 <a class="google-sign-in" href="/operator/auth/google/login">Đăng nhập bằng Google</a>
+                 ${renderThemeSwitcher(input.theme, true)}`
               : `<p class="notice" role="alert">Đăng nhập Google chưa được cấu hình cho máy chủ này.</p>`
           }
         </section>
@@ -109,9 +118,10 @@ export const renderDashboardPage = (input: DashboardPageInput): string => {
         )}&cursor=${encodeURIComponent(input.nextCursor)}">Xem trang tiếp theo</a>`;
 
   return renderDocument({
+    theme: input.theme,
     body: `
       <main class="dashboard-shell" aria-labelledby="dashboard-title">
-        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled, input.theme)}
         ${renderDashboardNavigation(input.selectedInboxId, 'inbox')}
         <section class="scope-bar" aria-label="Phạm vi hộp thư">
           <form action="/operator" method="get">
@@ -172,9 +182,10 @@ export const renderDashboardOutboundCommandHistoryPage = (
         )}&cursor=${encodeURIComponent(input.nextCursor)}">Xem trang tiếp theo</a>`;
 
   return renderDocument({
+    theme: input.theme,
     body: `
       <main class="dashboard-shell" aria-labelledby="dashboard-title">
-        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled, input.theme)}
         ${renderDashboardNavigation(input.selectedInboxId, 'history')}
         <section class="scope-bar" aria-label="Phạm vi hộp thư">
           <nav class="scope-links" aria-label="Chọn hộp thư">
@@ -217,9 +228,10 @@ export const renderDashboardConnectionsPage = (input: DashboardConnectionsPageIn
       : `<div class="connection-grid">${scopedConnections.map(renderConnectionCard).join('')}</div>`;
 
   return renderDocument({
+    theme: input.theme,
     body: `
       <main class="dashboard-shell" aria-labelledby="connections-title">
-        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled, input.theme)}
         ${renderDashboardNavigation(input.selectedInboxId, 'connections')}
         ${renderDashboardScopeSelector(input.inboxes, input.selectedInboxId, input.principalId)}
         <section class="page-intro">
@@ -246,9 +258,10 @@ export const renderDashboardGuidePage = (input: DashboardGuidePageInput): string
     .join('');
 
   return renderDocument({
+    theme: input.theme,
     body: `
       <main class="dashboard-shell" aria-labelledby="guide-title">
-        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled, input.theme)}
         ${renderDashboardNavigation(input.selectedInboxId, 'guide')}
         ${renderDashboardScopeSelector(input.inboxes, input.selectedInboxId, input.principalId)}
         <section class="page-intro">
@@ -270,7 +283,11 @@ export const renderDashboardGuidePage = (input: DashboardGuidePageInput): string
   });
 };
 
-const renderDashboardHeader = (csrfToken: string, googleAuthenticationEnabled: boolean): string => `
+const renderDashboardHeader = (
+  csrfToken: string,
+  googleAuthenticationEnabled: boolean,
+  theme: DashboardTheme
+): string => `
   <header class="dashboard-header">
     <div>
       <p class="eyebrow">OPEN CHANNEL HUB / BẢNG ĐIỀU HÀNH</p>
@@ -278,6 +295,7 @@ const renderDashboardHeader = (csrfToken: string, googleAuthenticationEnabled: b
       <p class="header-subtitle">Một nơi nhìn thấy toàn bộ đường tin, quyền thao tác và phần còn đang khoá.</p>
     </div>
     <div class="header-actions">
+      ${renderThemeSwitcher(theme, false)}
       <form action="/operator/logout" method="post">
         <input type="hidden" name="csrf" value="${escapeAttribute(csrfToken)}">
         <button class="quiet-button" type="submit">Đăng xuất</button>
@@ -292,6 +310,13 @@ const renderDashboardHeader = (csrfToken: string, googleAuthenticationEnabled: b
       }
     </div>
   </header>`;
+
+const renderThemeSwitcher = (theme: DashboardTheme, stacked: boolean): string => `
+  <nav class="theme-switcher${stacked ? ' theme-switcher-stacked' : ''}" aria-label="Giao diện">
+    <span class="theme-switcher-label">Giao diện</span>
+    <a href="/operator/theme/light"${theme === 'light' ? ' aria-current="page"' : ''}>Sáng</a>
+    <a href="/operator/theme/dark"${theme === 'dark' ? ' aria-current="page"' : ''}>Tối</a>
+  </nav>`;
 
 const renderDashboardNavigation = (
   selectedInboxId: string,
@@ -588,13 +613,15 @@ const renderTelegramDeliveryAuthorizationForm = (
     <button type="submit">Ghi chấp thuận Telegram</button>
   </form>`;
 
-const renderDocument = (input: Readonly<{ body: string }>): string => `<!doctype html>
-<html lang="vi">
+const renderDocument = (
+  input: Readonly<{ body: string; theme: DashboardTheme }>
+): string => `<!doctype html>
+<html data-theme="${input.theme}" lang="vi">
   <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>Open Channel Hub</title>
-    <link href="/operator/assets/dashboard.css" rel="stylesheet">
+    <link href="/operator/assets/dashboard.css?v=2" rel="stylesheet">
   </head>
   <body><a class="skip-link" href="#dashboard-title">Bỏ qua điều hướng</a>${input.body}
   </body>

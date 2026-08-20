@@ -105,6 +105,8 @@ describe('dashboard routes', () => {
     expect(connections.statusCode).toBe(200);
     expect(stylesheet.statusCode).toBe(200);
     expect(stylesheet.body).toContain('--paper:');
+    expect(stylesheet.body).toContain('--font-body: "Segoe UI"');
+    expect(stylesheet.body).toContain(':root[data-theme="dark"]');
     expect(stylesheet.body).toContain('.dashboard-nav');
     expect(connections.body).toContain('Kết nối trong hộp thư');
     expect(connections.body).toContain('Telegram Bot');
@@ -114,6 +116,40 @@ describe('dashboard routes', () => {
     expect(guide.body).toContain('Máy chủ đang làm được gì?');
     expect(guide.body).toContain('Ý định trả lời');
     expect(guide.body).toContain('TẠM DỪNG CÓ CHỦ Ý');
+  });
+
+  it('defaults to the light theme and persists an explicit dark-theme preference', async () => {
+    const harness = await createHarness();
+    applications.push(harness.app);
+
+    const login = await harness.app.inject({ method: 'GET', url: '/operator/login' });
+
+    expect(login.statusCode).toBe(200);
+    expect(login.body).toContain('<html data-theme="light"');
+    expect(login.body).toContain('href="/operator/theme/dark"');
+    expect(login.body).toContain('href="/operator/theme/light" aria-current="page"');
+
+    const darkPreference = await harness.app.inject({
+      method: 'GET',
+      url: '/operator/theme/dark?return=login'
+    });
+    const themeCookie = cookieFrom(darkPreference, '__Host-och_dashboard_theme');
+
+    expect(darkPreference.statusCode).toBe(303);
+    expect(darkPreference.headers.location).toBe('/operator/login');
+    expect(themeCookie).toContain('__Host-och_dashboard_theme=dark');
+    expect(themeCookie).toContain('HttpOnly');
+    expect(themeCookie).toContain('Secure');
+
+    const darkLogin = await harness.app.inject({
+      headers: { cookie: cookiePair(themeCookie) },
+      method: 'GET',
+      url: '/operator/login'
+    });
+
+    expect(darkLogin.statusCode).toBe(200);
+    expect(darkLogin.body).toContain('<html data-theme="dark"');
+    expect(darkLogin.body).toContain('href="/operator/theme/dark" aria-current="page"');
   });
 
   it('shows Zalo User group controls without leaking another inbox connection', async () => {
