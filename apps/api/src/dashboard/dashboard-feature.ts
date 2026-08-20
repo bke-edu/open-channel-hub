@@ -8,6 +8,7 @@ import type {
   OutboundReplyCommandHistoryPage,
   OutboundReplyCommandHistoryPageCursor
 } from '@open-channel-hub/domain';
+import type { Channel, ConnectorCapabilityId, ConnectorTier } from '@open-channel-hub/contracts';
 
 import type { DashboardGoogleOAuthClient } from './dashboard-google-oauth.js';
 
@@ -42,6 +43,22 @@ export interface DashboardInbox {
   readonly readOutboundReplyCommandHistory: (
     input: DashboardOutboundCommandHistoryReadInput
   ) => Promise<OutboundReplyCommandHistoryPage>;
+}
+
+/**
+ * Non-secret connection metadata used by the operator UI. Credentials and
+ * provider account identifiers deliberately stop at the composition root.
+ */
+export interface DashboardConnection {
+  readonly capabilities: readonly ConnectorCapabilityId[];
+  readonly channel: Channel;
+  readonly connectorId: string;
+  readonly displayName: string;
+  readonly id: string;
+  readonly inboundRoute: string;
+  readonly operatorUrl?: string;
+  readonly readerRoute: string;
+  readonly tier: ConnectorTier;
 }
 
 /** The exact source-bound fields a dashboard form may record. */
@@ -116,6 +133,8 @@ export interface DashboardFeature {
   findGoogleBootstrapPrincipal: (email: string) => DashboardGoogleBootstrapPrincipal | undefined;
   findPrincipal: (principalId: string) => DashboardPrincipal | undefined;
   listInboxes: (principalId: string) => readonly DashboardInbox[];
+  /** Safe metadata for the connection map; absent in isolated test harnesses. */
+  listConnections?: (principalId: string) => readonly DashboardConnection[];
 }
 
 /**

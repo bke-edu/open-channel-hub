@@ -20,6 +20,74 @@ import { toZaloUserConnectionConfigurations } from './zalo-user/zalo-user-connec
 import { createWhatsAppBusinessFeature } from './whatsapp-business/create-whatsapp-business-feature.js';
 import { toWhatsAppBusinessConnectionConfigurations } from './whatsapp-business/whatsapp-business-connection-configurations.js';
 import { createPostgresDatabase } from '@open-channel-hub/storage-postgres';
+import type {
+  Channel,
+  ConnectionRegistration,
+  ConnectorCapabilityId
+} from '@open-channel-hub/contracts';
+
+const DASHBOARD_CONNECTION_PRESENTATIONS: Readonly<
+  Record<
+    Channel,
+    Readonly<{
+      capabilities: readonly ConnectorCapabilityId[];
+      displayName: string;
+      inboundRoute: string;
+      operatorUrl?: string;
+      readerRoute: string;
+    }>
+  >
+> = Object.freeze({
+  facebook_page: Object.freeze({
+    capabilities: Object.freeze(['message.receive.text'] as const),
+    displayName: 'Facebook Page',
+    inboundRoute: '/v1/webhooks/meta hoặc /v1/webhooks/facebook-page',
+    readerRoute: '/v1/facebook-page/inbound-events'
+  }),
+  facebook_user: Object.freeze({
+    capabilities: Object.freeze([] as const),
+    displayName: 'Facebook User',
+    inboundRoute: 'Chưa có route',
+    readerRoute: 'Chưa có route'
+  }),
+  telegram_bot: Object.freeze({
+    capabilities: Object.freeze(['message.receive.text', 'message.send.text'] as const),
+    displayName: 'Telegram Bot',
+    inboundRoute: '/v1/webhooks/telegram-bot',
+    readerRoute: '/v1/telegram-bot/inbound-events'
+  }),
+  telegram_user: Object.freeze({
+    capabilities: Object.freeze([] as const),
+    displayName: 'Telegram User',
+    inboundRoute: 'Chưa có route',
+    readerRoute: 'Chưa có route'
+  }),
+  whatsapp_business: Object.freeze({
+    capabilities: Object.freeze(['message.receive.text'] as const),
+    displayName: 'WhatsApp Business',
+    inboundRoute: '/v1/webhooks/meta hoặc /v1/webhooks/whatsapp-business',
+    readerRoute: '/v1/whatsapp-business/inbound-events'
+  }),
+  whatsapp_user: Object.freeze({
+    capabilities: Object.freeze([] as const),
+    displayName: 'WhatsApp User',
+    inboundRoute: 'Chưa có route',
+    readerRoute: 'Chưa có route'
+  }),
+  zalo_oa: Object.freeze({
+    capabilities: Object.freeze(['message.receive.text'] as const),
+    displayName: 'Zalo Official Account',
+    inboundRoute: '/v1/webhooks/zalo-oa',
+    readerRoute: '/v1/zalo-oa/inbound-events'
+  }),
+  zalo_user: Object.freeze({
+    capabilities: Object.freeze(['message.receive.text'] as const),
+    displayName: 'Zalo User · nhóm',
+    inboundRoute: '/v1/experimental/zalo-user/:connectionId/events',
+    operatorUrl: 'http://127.0.0.1:9473/operator/login',
+    readerRoute: '/v1/zalo-user/inbound-events'
+  })
+});
 
 const environment = parseEnvironment(process.env);
 const postgres =
@@ -237,7 +305,16 @@ try {
             dashboardConfiguration,
             inboxes,
             dashboardSessionStore,
-            googleAuthentication === undefined ? {} : { googleAuthentication }
+            {
+              ...(googleAuthentication === undefined ? {} : { googleAuthentication }),
+              connections: toDashboardConnections([
+                ...telegramFeatures.map((feature) => feature.registration),
+                ...zaloOaFeatures.map((feature) => feature.registration),
+                ...zaloUserFeatures.map((feature) => feature.registration),
+                ...facebookPageFeatures.map((feature) => feature.registration),
+                ...whatsappBusinessFeatures.map((feature) => feature.registration)
+              ])
+            }
           );
         }
       }
@@ -292,4 +369,22 @@ try {
 } catch (error) {
   await postgres?.close();
   throw error;
+}
+
+function toDashboardConnections(registrations: readonly ConnectionRegistration[]) {
+  return registrations.map((registration) => {
+    const presentation = DASHBOARD_CONNECTION_PRESENTATIONS[registration.channel];
+
+    return Object.freeze({
+      capabilities: presentation.capabilities,
+      channel: registration.channel,
+      connectorId: registration.connectorId,
+      displayName: presentation.displayName,
+      id: registration.id,
+      inboundRoute: presentation.inboundRoute,
+      ...(presentation.operatorUrl === undefined ? {} : { operatorUrl: presentation.operatorUrl }),
+      readerRoute: presentation.readerRoute,
+      tier: registration.tier
+    });
+  });
 }

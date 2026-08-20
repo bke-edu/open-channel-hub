@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import type { CanonicalEvent } from '@open-channel-hub/contracts';
 import type { OutboundReplyCommandHistoryEntry } from '@open-channel-hub/domain';
 
+import type { DashboardConnection } from './dashboard-feature.js';
+
 export interface DashboardLoginPageInput {
   readonly csrfToken: string;
   readonly googleAuthenticationEnabled: boolean;
@@ -11,6 +13,7 @@ export interface DashboardLoginPageInput {
 
 export interface DashboardPageInput {
   readonly connectionIds: readonly string[];
+  readonly connections?: readonly DashboardConnection[];
   readonly csrfToken: string;
   readonly events: readonly CanonicalEvent[];
   readonly googleAuthenticationEnabled: boolean;
@@ -24,6 +27,7 @@ export interface DashboardPageInput {
 export interface DashboardOutboundCommandHistoryPageInput {
   readonly commands: readonly OutboundReplyCommandHistoryEntry[];
   readonly connectionIds: readonly string[];
+  readonly connections?: readonly DashboardConnection[];
   readonly csrfToken: string;
   readonly googleAuthenticationEnabled: boolean;
   readonly inboxes: readonly Readonly<{ id: string }>[];
@@ -31,6 +35,26 @@ export interface DashboardOutboundCommandHistoryPageInput {
   readonly principalId: string;
   readonly selectedInboxId: string;
   readonly telegramDeliveryAuthorizationEnabled: boolean;
+}
+
+export interface DashboardConnectionsPageInput {
+  readonly connectionIds: readonly string[];
+  readonly connections: readonly DashboardConnection[];
+  readonly csrfToken: string;
+  readonly googleAuthenticationEnabled: boolean;
+  readonly inboxes: readonly Readonly<{ id: string }>[];
+  readonly principalId: string;
+  readonly selectedInboxId: string;
+}
+
+export interface DashboardGuidePageInput {
+  readonly connectionIds: readonly string[];
+  readonly connections: readonly DashboardConnection[];
+  readonly csrfToken: string;
+  readonly googleAuthenticationEnabled: boolean;
+  readonly inboxes: readonly Readonly<{ id: string }>[];
+  readonly principalId: string;
+  readonly selectedInboxId: string;
 }
 
 /** Renders a no-script login page with an explicit anti-forgery form token. */
@@ -99,24 +123,8 @@ export const renderDashboardPage = (input: DashboardPageInput): string => {
   return renderDocument({
     body: `
       <main class="dashboard-shell" aria-labelledby="dashboard-title">
-        <header class="dashboard-header">
-          <div>
-            <p class="eyebrow">OPEN CHANNEL HUB / BẢNG ĐIỀU HÀNH</p>
-            <h1 id="dashboard-title">Bảng tín hiệu</h1>
-          </div>
-          <form action="/operator/logout" method="post">
-            <input type="hidden" name="csrf" value="${escapeAttribute(input.csrfToken)}">
-            <button class="quiet-button" type="submit">Đăng xuất</button>
-          </form>
-          ${
-            input.googleAuthenticationEnabled
-              ? `<form action="/operator/auth/google/link" method="post">
-                   <input type="hidden" name="csrf" value="${escapeAttribute(input.csrfToken)}">
-                   <button class="quiet-button" type="submit">Liên kết Google</button>
-                 </form>`
-              : ''
-          }
-        </header>
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardNavigation(input.selectedInboxId, 'inbox')}
         <section class="scope-bar" aria-label="Phạm vi hộp thư">
           <form action="/operator" method="get">
             <label for="inbox">Hộp thư</label>
@@ -128,8 +136,14 @@ export const renderDashboardPage = (input: DashboardPageInput): string => {
           )}">Ý định trả lời đang chờ</a>
           <p>Người vận hành: <strong>${escapeHtml(input.principalId)}</strong></p>
         </section>
+        ${renderDashboardSummary({
+          connectionCount: input.connectionIds.length,
+          eventCount: input.events.length,
+          label: 'Tín hiệu trong trang',
+          writable: input.replyIntentEnabled
+        })}
         ${renderWorkflowRail('inbound')}
-        ${renderConnectionScope(input.connectionIds)}
+        ${renderConnectionScope(input.connectionIds, input.connections)}
         <section class="ledger" aria-labelledby="ledger-title">
           <div class="ledger-heading">
             <p class="eyebrow">SỔ SỰ KIỆN / MỚI NHẤT TRƯỚC</p>
@@ -172,24 +186,8 @@ export const renderDashboardOutboundCommandHistoryPage = (
   return renderDocument({
     body: `
       <main class="dashboard-shell" aria-labelledby="dashboard-title">
-        <header class="dashboard-header">
-          <div>
-            <p class="eyebrow">OPEN CHANNEL HUB / HÀNG ĐỢI</p>
-            <h1 id="dashboard-title">Bảng tín hiệu</h1>
-          </div>
-          <form action="/operator/logout" method="post">
-            <input type="hidden" name="csrf" value="${escapeAttribute(input.csrfToken)}">
-            <button class="quiet-button" type="submit">Đăng xuất</button>
-          </form>
-          ${
-            input.googleAuthenticationEnabled
-              ? `<form action="/operator/auth/google/link" method="post">
-                   <input type="hidden" name="csrf" value="${escapeAttribute(input.csrfToken)}">
-                   <button class="quiet-button" type="submit">Liên kết Google</button>
-                 </form>`
-              : ''
-          }
-        </header>
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardNavigation(input.selectedInboxId, 'history')}
         <section class="scope-bar" aria-label="Phạm vi hộp thư">
           <nav class="scope-links" aria-label="Chọn hộp thư">
             <span class="scope-label">Hộp thư</span>
@@ -200,9 +198,16 @@ export const renderDashboardOutboundCommandHistoryPage = (
           )}">Xem tin nhắn đến</a>
           <p>Người vận hành: <strong>${escapeHtml(input.principalId)}</strong></p>
         </section>
+        ${renderDashboardSummary({
+          connectionCount: input.connectionIds.length,
+          eventCount: input.commands.length,
+          label: 'Ý định trong trang',
+          writable: input.telegramDeliveryAuthorizationEnabled,
+          writableLabel: 'phê duyệt Telegram'
+        })}
         ${renderWorkflowRail('outbound')}
-        ${renderConnectionScope(input.connectionIds)}
-        <section class="ledger" aria-labelledby="ledger-title">
+        ${renderConnectionScope(input.connectionIds, input.connections)}
+        <section class="ledger" id="evidence-ledger" aria-labelledby="ledger-title">
           <div class="ledger-heading">
             <p class="eyebrow">Ý ĐỊNH TRẢ LỜI / MỚI NHẤT TRƯỚC</p>
             <h2 id="ledger-title">${escapeHtml(input.selectedInboxId)}</h2>
@@ -213,6 +218,211 @@ export const renderDashboardOutboundCommandHistoryPage = (
         </section>
       </main>`
   });
+};
+
+/** Renders the connection inventory that was previously invisible behind the inbox. */
+export const renderDashboardConnectionsPage = (input: DashboardConnectionsPageInput): string => {
+  const scopedConnections = connectionsInScope(input.connections, input.connectionIds);
+  const cards =
+    scopedConnections.length === 0
+      ? '<p class="empty-state">Chưa có bản mô tả kết nối an toàn trong phạm vi này.</p>'
+      : `<div class="connection-grid">${scopedConnections.map(renderConnectionCard).join('')}</div>`;
+
+  return renderDocument({
+    body: `
+      <main class="dashboard-shell" aria-labelledby="connections-title">
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardNavigation(input.selectedInboxId, 'connections')}
+        ${renderDashboardScopeSelector(input.inboxes, input.selectedInboxId, input.principalId)}
+        <section class="page-intro">
+          <p class="eyebrow">BẢN ĐỒ KẾT NỐI / KHÔNG CÓ BÍ MẬT</p>
+          <h2 id="connections-title">Kết nối trong hộp thư</h2>
+          <p>Đây là toàn bộ đường vào mà máy chủ đã nạp cho phạm vi này. Mỗi thẻ nói rõ kênh nhận, năng lực đã khai báo và đường đọc tương ứng.</p>
+        </section>
+        ${renderConnectionScope(input.connectionIds, input.connections)}
+        ${cards}
+      </main>`
+  });
+};
+
+/** Explains the complete backend-to-operator journey without implying provider dispatch. */
+export const renderDashboardGuidePage = (input: DashboardGuidePageInput): string => {
+  const capabilityRows = connectionsInScope(input.connections, input.connectionIds)
+    .map(
+      (connection) => `<li class="capability-row">
+        <div><strong>${escapeHtml(connection.displayName)}</strong><code>${escapeHtml(connection.id)}</code></div>
+        <p>${capabilityDescription(connection)}</p>
+        <span class="capability-route">Đọc: ${escapeHtml(connection.readerRoute)}</span>
+      </li>`
+    )
+    .join('');
+
+  return renderDocument({
+    body: `
+      <main class="dashboard-shell" aria-labelledby="guide-title">
+        ${renderDashboardHeader(input.csrfToken, input.googleAuthenticationEnabled)}
+        ${renderDashboardNavigation(input.selectedInboxId, 'guide')}
+        ${renderDashboardScopeSelector(input.inboxes, input.selectedInboxId, input.principalId)}
+        <section class="page-intro">
+          <p class="eyebrow">BẢNG NĂNG LỰC / ĐƯỜNG ĐI DỮ LIỆU</p>
+          <h2 id="guide-title">Máy chủ đang làm được gì?</h2>
+          <p>Trang này nối từng khả năng backend với nơi mày xem hoặc thao tác được trong giao diện. Những thứ chưa có đường an toàn sẽ hiện thẳng là chưa bật, không núp sau một cái nút đẹp.</p>
+        </section>
+        <section class="guide-grid" aria-label="Các chặng vận hành">
+          <article class="guide-card guide-card-active"><span>01</span><h3>Tin đến</h3><p>Webhook hoặc cầu nối đã xác thực → chuẩn hoá → ghi sổ → hiển thị trong hộp thư.</p><a href="/operator?inbox=${encodeURIComponent(input.selectedInboxId)}">Mở tin đến</a></article>
+          <article class="guide-card guide-card-active"><span>02</span><h3>Ý định trả lời</h3><p>Form gắn với đúng sự kiện nguồn; máy chủ tự suy ra đích, ghi bền và chống gửi trùng.</p><a href="/operator/outbound-commands?inbox=${encodeURIComponent(input.selectedInboxId)}">Mở hàng đợi</a></article>
+          <article class="guide-card guide-card-active"><span>03</span><h3>Bằng chứng</h3><p>Quyền, điều kiện Telegram và dấu vết lần thử chỉ được hiển thị theo những gì sổ bền đã ghi.</p><a href="/operator/outbound-commands?inbox=${encodeURIComponent(input.selectedInboxId)}#evidence-ledger">Xem bằng chứng</a></article>
+          <article class="guide-card guide-card-paused"><span>04</span><h3>Gửi nhà cung cấp</h3><p>Chưa có bộ tự gửi, tự gửi lại hay trạng thái giao hàng. Không có dữ liệu giả để gọi là đã gửi.</p><span class="paused-label">TẠM DỪNG CÓ CHỦ Ý</span></article>
+        </section>
+        <section class="capability-panel" aria-labelledby="capability-title">
+          <div class="ledger-heading"><p class="eyebrow">KẾT NỐI ĐANG CẤP QUYỀN</p><h2 id="capability-title">Năng lực từng kênh</h2></div>
+          <ul class="capability-list-large">${capabilityRows || '<li class="empty-state">Không có kết nối trong phạm vi.</li>'}</ul>
+        </section>
+      </main>`
+  });
+};
+
+const renderDashboardHeader = (csrfToken: string, googleAuthenticationEnabled: boolean): string => `
+  <header class="dashboard-header">
+    <div>
+      <p class="eyebrow">OPEN CHANNEL HUB / BẢNG ĐIỀU HÀNH</p>
+      <h1 id="dashboard-title">Bảng tín hiệu</h1>
+      <p class="header-subtitle">Một nơi nhìn thấy toàn bộ đường tin, quyền thao tác và phần còn đang khoá.</p>
+    </div>
+    <div class="header-actions">
+      <form action="/operator/logout" method="post">
+        <input type="hidden" name="csrf" value="${escapeAttribute(csrfToken)}">
+        <button class="quiet-button" type="submit">Đăng xuất</button>
+      </form>
+      ${
+        googleAuthenticationEnabled
+          ? `<form action="/operator/auth/google/link" method="post">
+               <input type="hidden" name="csrf" value="${escapeAttribute(csrfToken)}">
+               <button class="quiet-button" type="submit">Liên kết Google</button>
+             </form>`
+          : ''
+      }
+    </div>
+  </header>`;
+
+const renderDashboardNavigation = (
+  selectedInboxId: string,
+  active: 'connections' | 'guide' | 'history' | 'inbox'
+): string => {
+  const query = `?inbox=${encodeURIComponent(selectedInboxId)}`;
+  const item = (key: typeof active, href: string, label: string, hint: string): string =>
+    `<a class="dashboard-nav-item${active === key ? ' dashboard-nav-active' : ''}" href="${href}"${
+      active === key ? ' aria-current="page"' : ''
+    }><strong>${label}</strong><small>${hint}</small></a>`;
+
+  return `<nav class="dashboard-nav" aria-label="Bảng điều hành">
+    ${item('inbox', `/operator${query}`, 'Tin đến', 'Sổ sự kiện mới nhất')}
+    ${item('connections', `/operator/connections${query}`, 'Kết nối', 'Kênh và đường đọc')}
+    ${item('history', `/operator/outbound-commands${query}`, 'Ý định &amp; bằng chứng', 'Hàng đợi bền')}
+    ${item('guide', `/operator/guide${query}`, 'Năng lực', 'Backend ↔ giao diện')}
+  </nav>`;
+};
+
+const renderDashboardScopeSelector = (
+  inboxes: readonly Readonly<{ id: string }>[],
+  selectedInboxId: string,
+  principalId: string
+): string => {
+  const options = inboxes
+    .map(
+      (inbox) =>
+        `<option value="${escapeAttribute(inbox.id)}"${
+          inbox.id === selectedInboxId ? ' selected' : ''
+        }>${escapeHtml(inbox.id)}</option>`
+    )
+    .join('');
+
+  return `<section class="scope-bar" aria-label="Phạm vi hộp thư">
+    <form action="/operator" method="get">
+      <label for="inbox">Hộp thư</label>
+      <select id="inbox" name="inbox">${options}</select>
+      <button class="quiet-button" type="submit">Đổi phạm vi</button>
+    </form>
+    <p>Người vận hành: <strong>${escapeHtml(principalId)}</strong></p>
+  </section>`;
+};
+
+const renderDashboardSummary = (
+  input: Readonly<{
+    connectionCount: number;
+    eventCount: number;
+    label: string;
+    writable: boolean;
+    writableLabel?: string;
+  }>
+): string => `
+  <section class="summary-grid" aria-label="Tóm tắt phạm vi">
+    <article class="summary-card"><span class="summary-index">01</span><strong>${String(input.eventCount)}</strong><span>${escapeHtml(input.label)}</span></article>
+    <article class="summary-card"><span class="summary-index">02</span><strong>${String(input.connectionCount)}</strong><span>kết nối đang theo dõi</span></article>
+    <article class="summary-card"><span class="summary-index">03</span><strong>${input.writable ? 'BẬT' : 'ĐỌC'}</strong><span>${input.writable ? escapeHtml(input.writableLabel ?? 'được ghi ý định') : 'chỉ xem trong phạm vi'}</span></article>
+    <article class="summary-card summary-card-muted"><span class="summary-index">04</span><strong>0</strong><span>tác vụ tự gửi nhà cung cấp</span></article>
+  </section>`;
+
+const renderConnectionCard = (connection: DashboardConnection): string => {
+  const capabilities = connection.capabilities
+    .map(
+      (capability) =>
+        `<li class="evidence-chip evidence-positive">${capabilityLabel(capability)}</li>`
+    )
+    .join('');
+  const bridgeCapabilities =
+    connection.channel === 'zalo_user'
+      ? '<li class="evidence-chip evidence-positive">Gửi chữ + ảnh trong bảng nhóm</li>'
+      : '';
+  const unsupported =
+    connection.capabilities.length === 0
+      ? '<li class="evidence-chip evidence-muted">Chưa khai báo năng lực</li>'
+      : '';
+  const bridgeAction =
+    connection.operatorUrl === undefined
+      ? ''
+      : `<a class="connection-action" href="${escapeAttribute(connection.operatorUrl)}" rel="noreferrer">Mở bảng nhóm Zalo User <span>↗</span></a>`;
+
+  return `<article class="connection-card">
+    <div class="connection-card-top"><span class="channel-kicker">${escapeHtml(connection.displayName)}</span><span class="connection-status"><i aria-hidden="true"></i> ĐÃ NẠP</span></div>
+    <h3><code>${escapeHtml(connection.id)}</code></h3>
+    <p class="connection-meta">${escapeHtml(connection.tier)} · ${escapeHtml(connection.connectorId)}</p>
+    <ul class="evidence-list">${capabilities}${bridgeCapabilities}${unsupported}</ul>
+    <dl class="connection-routes">
+      <div><dt>Đường vào</dt><dd><code>${escapeHtml(connection.inboundRoute)}</code></dd></div>
+      <div><dt>Đường đọc</dt><dd><code>${escapeHtml(connection.readerRoute)}</code></dd></div>
+    </dl>
+    ${
+      connection.operatorUrl === undefined
+        ? ''
+        : `<p class="connection-note">Bảng nhóm cục bộ, mặc định ở cổng 9473; có QR và tự nối lại.</p>${bridgeAction}`
+    }
+  </article>`;
+};
+
+const capabilityLabel = (capability: string): string => {
+  switch (capability) {
+    case 'message.receive.text':
+      return 'Nhận tin chữ';
+    case 'message.send.text':
+      return 'Có năng lực gửi chữ';
+    default:
+      return capability;
+  }
+};
+
+const capabilityDescription = (connection: DashboardConnection): string => {
+  const labels = connection.capabilities.map(capabilityLabel);
+
+  if (connection.channel === 'zalo_user') {
+    return 'Cầu nối Zalo User nhận tin nhóm vào sổ; bảng nhóm cục bộ còn có QR, tự nối lại, gửi chữ và gửi ảnh.';
+  }
+
+  if (labels.length === 0) {
+    return 'Kênh này chưa có bộ kết nối tương ứng trong bản build hiện tại.';
+  }
+
+  return `${labels.join(' · ')}. Dashboard chỉ ghi ý định trả lời; chưa tự gọi nhà cung cấp.`;
 };
 
 /** A truthful map of the operational path; it never implies a dispatch exists. */
@@ -236,16 +446,30 @@ const renderWorkflowRail = (active: 'inbound' | 'outbound'): string => `
   </section>`;
 
 /** Connection IDs are already inside the selected server-side inbox scope. */
-const renderConnectionScope = (connectionIds: readonly string[]): string => `
+const renderConnectionScope = (
+  connectionIds: readonly string[],
+  connections: readonly DashboardConnection[] = []
+): string => `
   <section class="connection-scope" aria-label="Kết nối đang theo dõi">
     <div>
       <p class="eyebrow">KẾT NỐI TRONG PHẠM VI</p>
       <p>Những đường vào dưới đây được máy chủ chọn theo hộp thư này; trình duyệt không tự đổi hoặc thêm kết nối.</p>
     </div>
     <ul>${connectionIds
-      .map((connectionId) => `<li><code>${escapeHtml(connectionId)}</code></li>`)
+      .map((connectionId) => {
+        const connection = connections.find((candidate) => candidate.id === connectionId);
+        return `<li><code>${escapeHtml(connectionId)}</code>${
+          connection === undefined ? '' : `<small>${escapeHtml(connection.displayName)}</small>`
+        }</li>`;
+      })
       .join('')}</ul>
   </section>`;
+
+const connectionsInScope = (
+  connections: readonly DashboardConnection[],
+  connectionIds: readonly string[]
+): readonly DashboardConnection[] =>
+  connections.filter((connection) => connectionIds.includes(connection.id));
 
 const renderEvent = (event: CanonicalEvent, input: DashboardPageInput): string => `
   <li class="event-card">
@@ -384,7 +608,7 @@ const renderDocument = (input: Readonly<{ body: string }>): string => `<!doctype
     <title>Open Channel Hub</title>
     <link href="/operator/assets/dashboard.css" rel="stylesheet">
   </head>
-  <body>${input.body}
+  <body><a class="skip-link" href="#dashboard-title">Bỏ qua điều hướng</a>${input.body}
   </body>
 </html>`;
 

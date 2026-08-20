@@ -8,6 +8,7 @@ import type { InboxFeature } from '../inbox/inbox-feature.js';
 import type {
   DashboardGoogleBootstrapPrincipal,
   DashboardGoogleAuthentication,
+  DashboardConnection,
   DashboardFeature,
   DashboardInbox,
   DashboardPrincipal,
@@ -36,7 +37,10 @@ export const createRuntimeDashboardFeature = (
   configuration: RuntimeDashboard,
   inboxes: readonly InboxFeature[],
   sessionStore: DashboardSessionStore,
-  options: Readonly<{ googleAuthentication?: DashboardGoogleAuthentication }> = {}
+  options: Readonly<{
+    connections?: readonly DashboardConnection[];
+    googleAuthentication?: DashboardGoogleAuthentication;
+  }> = {}
 ): DashboardFeature => {
   const inboxById = toInboxSnapshot(inboxes);
   const principalById = toPrincipalSnapshot(configuration.principals, inboxById);
@@ -47,7 +51,9 @@ export const createRuntimeDashboardFeature = (
   const replyIntentInboxesByPrincipal = toReplyIntentInboxesByPrincipal(principalById, inboxes);
   const telegramDeliveryAuthorizationInboxesByPrincipal =
     toTelegramDeliveryAuthorizationInboxesByPrincipal(principalById, inboxes);
+  const connectionsById = toConnectionSnapshot(options.connections);
   const inboxesByPrincipal = new Map<string, readonly DashboardInbox[]>();
+  const connectionsByPrincipal = new Map<string, readonly DashboardConnection[]>();
 
   for (const principal of principalById.values()) {
     const allowedInboxes = principal.inboxIds.map((inboxId) => {
@@ -61,6 +67,16 @@ export const createRuntimeDashboardFeature = (
     });
 
     inboxesByPrincipal.set(principal.id, Object.freeze(allowedInboxes));
+
+    const allowedConnections = principal.inboxIds
+      .flatMap((inboxId) => inboxById.get(inboxId)?.connectionIds ?? [])
+      .map((connectionId) => connectionsById.get(connectionId))
+      .filter((connection): connection is DashboardConnection => connection !== undefined);
+    const uniqueConnections = new Map(
+      allowedConnections.map((connection) => [connection.id, connection])
+    );
+
+    connectionsByPrincipal.set(principal.id, Object.freeze([...uniqueConnections.values()]));
   }
 
   return Object.freeze({
@@ -92,6 +108,8 @@ export const createRuntimeDashboardFeature = (
       principalById.get(principalId),
     listInboxes: (principalId: string): readonly DashboardInbox[] =>
       inboxesByPrincipal.get(principalId) ?? Object.freeze([]),
+    listConnections: (principalId: string): readonly DashboardConnection[] =>
+      connectionsByPrincipal.get(principalId) ?? Object.freeze([]),
     ...(options.googleAuthentication === undefined
       ? {}
       : { googleAuthentication: toGoogleAuthenticationSnapshot(options.googleAuthentication) }),
@@ -100,6 +118,35 @@ export const createRuntimeDashboardFeature = (
     sessionIdPepper: configuration.sessionIdPepper,
     sessionStore
   });
+};
+
+const toConnectionSnapshot = (
+  connections: readonly DashboardConnection[] | undefined
+): ReadonlyMap<string, DashboardConnection> => {
+  const byId = new Map<string, DashboardConnection>();
+
+  for (const connection of connections ?? []) {
+    if (byId.has(connection.id)) {
+      throw new RuntimeDashboardFeatureError();
+    }
+
+    byId.set(
+      connection.id,
+      Object.freeze({
+        capabilities: Object.freeze([...connection.capabilities]),
+        channel: connection.channel,
+        connectorId: connection.connectorId,
+        displayName: connection.displayName,
+        id: connection.id,
+        inboundRoute: connection.inboundRoute,
+        ...(connection.operatorUrl === undefined ? {} : { operatorUrl: connection.operatorUrl }),
+        readerRoute: connection.readerRoute,
+        tier: connection.tier
+      })
+    );
+  }
+
+  return byId;
 };
 
 /**

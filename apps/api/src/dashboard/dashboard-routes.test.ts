@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { buildApp } from '../app.js';
 import type {
   DashboardFeature,
+  DashboardConnection,
   DashboardGoogleAuthentication,
   DashboardInbox,
   DashboardPrincipal,
@@ -35,6 +36,18 @@ type TelegramDeliveryAuthorizationRecord = Mock<
   DashboardTelegramDeliveryAuthorizationInbox['recordTelegramDeliveryAuthorization']
 >;
 
+const dashboardConnectionForTest = (): DashboardConnection =>
+  Object.freeze({
+    capabilities: Object.freeze(['message.receive.text', 'message.send.text'] as const),
+    channel: 'telegram_bot' as const,
+    connectorId: 'telegram-bot',
+    displayName: 'Telegram Bot',
+    id: 'telegram-bot-support',
+    inboundRoute: '/v1/webhooks/telegram-bot',
+    readerRoute: '/v1/telegram-bot/inbound-events',
+    tier: 'OFFICIAL' as const
+  });
+
 describe('dashboard routes', () => {
   const applications: Awaited<ReturnType<typeof buildApp>>[] = [];
 
@@ -49,6 +62,71 @@ describe('dashboard routes', () => {
     const response = await app.inject({ method: 'GET', url: '/operator/login' });
 
     expect(response.statusCode).toBe(404);
+  });
+
+  it('exposes the connection map and capability guide inside the authenticated dashboard shell', async () => {
+    const harness = await createHarness();
+    applications.push(harness.app);
+    const sessionCookie = await loginAndGetSessionCookie(harness.app);
+    const stylesheet = await harness.app.inject({
+      method: 'GET',
+      url: '/operator/assets/dashboard.css'
+    });
+
+    const connections = await harness.app.inject({
+      headers: { cookie: cookiePair(sessionCookie) },
+      method: 'GET',
+      url: '/operator/connections?inbox=support-inbox'
+    });
+    const guide = await harness.app.inject({
+      headers: { cookie: cookiePair(sessionCookie) },
+      method: 'GET',
+      url: '/operator/guide?inbox=support-inbox'
+    });
+
+    expect(connections.statusCode).toBe(200);
+    expect(stylesheet.statusCode).toBe(200);
+    expect(stylesheet.body).toContain('--paper:');
+    expect(stylesheet.body).toContain('.dashboard-nav');
+    expect(connections.body).toContain('Kết nối trong hộp thư');
+    expect(connections.body).toContain('Telegram Bot');
+    expect(connections.body).toContain('/v1/telegram-bot/inbound-events');
+    expect(connections.body).toContain('Tin đến');
+    expect(guide.statusCode).toBe(200);
+    expect(guide.body).toContain('Máy chủ đang làm được gì?');
+    expect(guide.body).toContain('Ý định trả lời');
+    expect(guide.body).toContain('TẠM DỪNG CÓ CHỦ Ý');
+  });
+
+  it('shows Zalo User group controls without leaking another inbox connection', async () => {
+    const zaloUserConnection: DashboardConnection = Object.freeze({
+      capabilities: Object.freeze(['message.receive.text'] as const),
+      channel: 'zalo_user',
+      connectorId: 'zalo-user',
+      displayName: 'Zalo User · nhóm',
+      id: 'zalo-user-support',
+      inboundRoute: '/v1/experimental/zalo-user/:connectionId/events',
+      operatorUrl: 'http://127.0.0.1:9473/operator/login',
+      readerRoute: '/v1/zalo-user/inbound-events',
+      tier: 'EXPERIMENTAL'
+    });
+    const harness = await createHarness({
+      dashboardConnections: Object.freeze([dashboardConnectionForTest(), zaloUserConnection]),
+      supportConnectionIds: Object.freeze(['zalo-user-support'])
+    });
+    applications.push(harness.app);
+    const sessionCookie = await loginAndGetSessionCookie(harness.app);
+
+    const connections = await harness.app.inject({
+      headers: { cookie: cookiePair(sessionCookie) },
+      method: 'GET',
+      url: '/operator/connections?inbox=support-inbox'
+    });
+
+    expect(connections.statusCode).toBe(200);
+    expect(connections.body).toContain('zalo-user-support');
+    expect(connections.body).toContain('Gửi chữ + ảnh trong bảng nhóm');
+    expect(connections.body).not.toContain('telegram-bot-support');
   });
 
   it('uses a one-time signed PKCE transaction before issuing a dashboard session for a linked Google identity', async () => {
@@ -1469,12 +1547,14 @@ const createHarness = async (
   options: Readonly<{
     googleAuthentication?: DashboardGoogleAuthentication;
     googleBootstrapEmail?: string;
+    dashboardConnections?: readonly DashboardConnection[];
     historyRead?: ReturnType<typeof vi.fn>;
     replyIntentInboxIds?: readonly string[];
     replyIntentRecord?: ReplyIntentRecord;
     telegramDeliveryAuthorizationInboxIds?: readonly string[];
     telegramDeliveryAuthorizationRecord?: TelegramDeliveryAuthorizationRecord;
     supportRead?: ReturnType<typeof vi.fn>;
+    supportConnectionIds?: readonly string[];
   }> = {}
 ): Promise<
   Readonly<{
@@ -1523,7 +1603,7 @@ const createHarness = async (
     );
   const supportInbox = inbox(
     'support-inbox',
-    SUPPORT_CONNECTION_IDS,
+    options.supportConnectionIds ?? SUPPORT_CONNECTION_IDS,
     supportRead as DashboardInbox['readInboundEvents'],
     historyRead as DashboardInbox['readOutboundReplyCommandHistory']
   );
@@ -1540,6 +1620,7 @@ const createHarness = async (
     id: supportInbox.id,
     recordReplyIntent: replyIntentRecord
   });
+  const dashboardConnection = dashboardConnectionForTest();
   const telegramDeliveryAuthorizationInbox: DashboardTelegramDeliveryAuthorizationInbox =
     Object.freeze({
       id: supportInbox.id,
@@ -1575,6 +1656,10 @@ const createHarness = async (
       principalId === principal.id ? principal : undefined,
     listInboxes: (principalId: string): readonly DashboardInbox[] =>
       principalId === principal.id ? Object.freeze([supportInbox]) : Object.freeze([]),
+    listConnections: (principalId: string): readonly DashboardConnection[] =>
+      principalId === principal.id
+        ? Object.freeze([...(options.dashboardConnections ?? [dashboardConnection])])
+        : Object.freeze([]),
     ...(options.googleAuthentication === undefined
       ? {}
       : { googleAuthentication: options.googleAuthentication }),

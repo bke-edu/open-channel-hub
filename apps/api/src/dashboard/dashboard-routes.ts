@@ -11,6 +11,8 @@ import {
 import { createDashboardLoginThrottle, verifyDashboardPassword } from './dashboard-auth.js';
 import type { DashboardFeature, DashboardInbox } from './dashboard-feature.js';
 import {
+  renderDashboardConnectionsPage,
+  renderDashboardGuidePage,
   renderDashboardLoginPage,
   renderDashboardOutboundCommandHistoryPage,
   renderDashboardPage
@@ -593,6 +595,7 @@ export const registerDashboardRoutes = async (
         reply,
         renderDashboardPage({
           connectionIds: context.selectedInbox.connectionIds,
+          connections: feature.listConnections?.(context.authenticated.session.principalId) ?? [],
           csrfToken: context.authenticated.csrfToken,
           events: page.events,
           googleAuthenticationEnabled: googleAuthentication !== undefined,
@@ -611,6 +614,48 @@ export const registerDashboardRoutes = async (
     } catch {
       return sendDashboardFailure(reply.code(500));
     }
+  });
+
+  app.get('/operator/connections', async (request, reply) => {
+    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+
+    if (context === undefined) {
+      return;
+    }
+
+    return sendDashboardHtml(
+      reply,
+      renderDashboardConnectionsPage({
+        connectionIds: context.selectedInbox.connectionIds,
+        connections: feature.listConnections?.(context.authenticated.session.principalId) ?? [],
+        csrfToken: context.authenticated.csrfToken,
+        googleAuthenticationEnabled: googleAuthentication !== undefined,
+        inboxes: context.availableInboxes,
+        principalId: context.authenticated.session.principalId,
+        selectedInboxId: context.selectedInboxId
+      })
+    );
+  });
+
+  app.get('/operator/guide', async (request, reply) => {
+    const context = await resolveDashboardPageRequest(request, reply, manager, feature);
+
+    if (context === undefined) {
+      return;
+    }
+
+    return sendDashboardHtml(
+      reply,
+      renderDashboardGuidePage({
+        connectionIds: context.selectedInbox.connectionIds,
+        connections: feature.listConnections?.(context.authenticated.session.principalId) ?? [],
+        csrfToken: context.authenticated.csrfToken,
+        googleAuthenticationEnabled: googleAuthentication !== undefined,
+        inboxes: context.availableInboxes,
+        principalId: context.authenticated.session.principalId,
+        selectedInboxId: context.selectedInboxId
+      })
+    );
   });
 
   app.get('/operator/outbound-commands', async (request, reply) => {
@@ -640,6 +685,7 @@ export const registerDashboardRoutes = async (
         renderDashboardOutboundCommandHistoryPage({
           commands: page.commands,
           connectionIds: context.selectedInbox.connectionIds,
+          connections: feature.listConnections?.(context.authenticated.session.principalId) ?? [],
           csrfToken: context.authenticated.csrfToken,
           googleAuthenticationEnabled: googleAuthentication !== undefined,
           inboxes: context.availableInboxes,
