@@ -8,27 +8,27 @@ Open Channel Hub is an alpha, self-hostable messaging hub. It accepts provider e
 
 ## Repository type and stack
 
-| Area | Evidence-based value | Source |
-|---|---|---|
-| Type | service repository with an npm workspace | package.json |
-| Runtime | Node.js 24.18.1 in CI and containers; package support is Node.js >=22.22.0 and <25 | .github/workflows/ci.yml, Dockerfile, package.json |
-| Language and build | TypeScript, npm workspaces, tsup | package.json, tsup.config.ts |
-| HTTP framework | Fastify | apps/api/src/app.ts |
-| Durable store | PostgreSQL adapter and forward-only migrations | packages/storage-postgres/src/postgres-migrations.ts |
-| Primary entry point | apps/api/src/server.ts | package.json |
-| Optional separate entry point | apps/zalo-user-bridge/src/main.ts | package.json |
+| Area                          | Evidence-based value                                                               | Source                                               |
+| ----------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Type                          | service repository with an npm workspace                                           | package.json                                         |
+| Runtime                       | Node.js 24.18.1 in CI and containers; package support is Node.js >=22.22.0 and <25 | .github/workflows/ci.yml, Dockerfile, package.json   |
+| Language and build            | TypeScript, npm workspaces, tsup                                                   | package.json, tsup.config.ts                         |
+| HTTP framework                | Fastify                                                                            | apps/api/src/app.ts                                  |
+| Durable store                 | PostgreSQL adapter and forward-only migrations                                     | packages/storage-postgres/src/postgres-migrations.ts |
+| Primary entry point           | apps/api/src/server.ts                                                             | package.json                                         |
+| Optional separate entry point | apps/zalo-user-bridge/src/main.ts                                                  | package.json                                         |
 
 ## Repository shape
 
-| Path | Responsibility | Evidence |
-|---|---|---|
-| apps/api/ | API composition, routes, runtime configuration, and provider-specific features | apps/api/src/app.ts |
-| apps/zalo-user-bridge/ | Isolated opt-in Zalo User session and group bridge | apps/zalo-user-bridge/src/main.ts |
-| packages/domain/ | Use cases and storage/provider ports | packages/domain/src/index.ts |
-| packages/contracts/ and packages/connector-sdk/ | Shared connector shapes, capabilities, and errors | packages/contracts/src/connector.ts, packages/connector-sdk/src/index.ts |
-| packages/connector-*/ | Provider-specific adapters | packages/ |
-| packages/storage-postgres/ | PostgreSQL persistence and migrations | packages/storage-postgres/src/ |
-| docs/operations/ and docs/adr/ | Owner-maintained operation guides and architecture decisions | docs/operations/, docs/adr/ |
+| Path                                            | Responsibility                                                                 | Evidence                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| apps/api/                                       | API composition, routes, runtime configuration, and provider-specific features | apps/api/src/app.ts                                                      |
+| apps/zalo-user-bridge/                          | Isolated opt-in Zalo User session and group bridge                             | apps/zalo-user-bridge/src/main.ts                                        |
+| packages/domain/                                | Use cases and storage/provider ports                                           | packages/domain/src/index.ts                                             |
+| packages/contracts/ and packages/connector-sdk/ | Shared connector shapes, capabilities, and errors                              | packages/contracts/src/connector.ts, packages/connector-sdk/src/index.ts |
+| packages/connector-*/                           | Provider-specific adapters                                                     | packages/                                                                |
+| packages/storage-postgres/                      | PostgreSQL persistence and migrations                                          | packages/storage-postgres/src/                                           |
+| docs/operations/ and docs/adr/                  | Owner-maintained operation guides and architecture decisions                   | docs/operations/, docs/adr/                                              |
 
 ## Main flow
 

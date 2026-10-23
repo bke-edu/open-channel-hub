@@ -4,15 +4,15 @@
 
 ## Boundaries and components
 
-| Component | Responsibility | Calls or owns | Evidence |
-|---|---|---|---|
-| apps/api | Builds the Fastify application and connects configured features to routes | packages/domain, provider connectors, PostgreSQL storage | apps/api/src/app.ts, apps/api/src/server.ts |
-| packages/domain | Owns use cases and ports for messages, events, connection registration, dashboard sessions, and reply commands | Contract and domain interfaces | packages/domain/src/ |
-| packages/contracts | Defines canonical message, connector, capability, and provider-command shapes | Shared by adapters and domain | packages/contracts/src/ |
-| packages/connector-sdk | Supplies shared adapter errors and connector support | Used by provider adapters and API features | packages/connector-sdk/src/ |
-| packages/connector-* | Implements provider-specific connection and event behavior | Provider APIs and domain ports | packages/ |
-| packages/storage-postgres | Implements persistence ports and forward-only schema migrations | PostgreSQL | packages/storage-postgres/src/ |
-| apps/zalo-user-bridge | Runs the separate experimental Zalo User session process and its explicit group control surface | Zalo User session library and the API bridge endpoint | apps/zalo-user-bridge/src/main.ts |
+| Component                 | Responsibility                                                                                                 | Calls or owns                                            | Evidence                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------- |
+| apps/api                  | Builds the Fastify application and connects configured features to routes                                      | packages/domain, provider connectors, PostgreSQL storage | apps/api/src/app.ts, apps/api/src/server.ts |
+| packages/domain           | Owns use cases and ports for messages, events, connection registration, dashboard sessions, and reply commands | Contract and domain interfaces                           | packages/domain/src/                        |
+| packages/contracts        | Defines canonical message, connector, capability, and provider-command shapes                                  | Shared by adapters and domain                            | packages/contracts/src/                     |
+| packages/connector-sdk    | Supplies shared adapter errors and connector support                                                           | Used by provider adapters and API features               | packages/connector-sdk/src/                 |
+| packages/connector-*      | Implements provider-specific connection and event behavior                                                     | Provider APIs and domain ports                           | packages/                                   |
+| packages/storage-postgres | Implements persistence ports and forward-only schema migrations                                                | PostgreSQL                                               | packages/storage-postgres/src/              |
+| apps/zalo-user-bridge     | Runs the separate experimental Zalo User session process and its explicit group control surface                | Zalo User session library and the API bridge endpoint    | apps/zalo-user-bridge/src/main.ts           |
 
 ## Main flow
 
@@ -47,13 +47,13 @@ Evidence: package.json, compose.yaml, apps/api/src/server.ts, apps/api/src/app.t
 
 ## Change impact
 
-| Change area | Likely affected components | Evidence to inspect |
-|---|---|---|
-| Provider event shape | packages/contracts, provider normalizer, API feature, storage mapping, reader response | packages/contracts/src/, apps/api/src/, packages/storage-postgres/src/ |
-| Connector capability | contract declaration, connector adapter, runtime registration, direct action route | packages/contracts/src/connector.ts, packages/connector-*/src/, apps/api/src/ |
-| Database schema | migration, adapter, migration tests, readiness, operations guide | packages/storage-postgres/src/, compose.yaml, docs/operations/postgresql-phase-2a.md |
-| Inbox or dashboard authorization | runtime catalogs, route, source-bound command store, dashboard session layer | apps/api/src/inbox/, apps/api/src/dashboard/, packages/domain/src/ |
-| Zalo User bridge | experimental connector, API intake, separate process configuration and controls | apps/zalo-user-bridge/src/, apps/api/src/zalo-user/, docs/operations/zalo-user-group-bridge-experimental.md |
+| Change area                      | Likely affected components                                                             | Evidence to inspect                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Provider event shape             | packages/contracts, provider normalizer, API feature, storage mapping, reader response | packages/contracts/src/, apps/api/src/, packages/storage-postgres/src/                                      |
+| Connector capability             | contract declaration, connector adapter, runtime registration, direct action route     | packages/contracts/src/connector.ts, packages/connector-*/src/, apps/api/src/                               |
+| Database schema                  | migration, adapter, migration tests, readiness, operations guide                       | packages/storage-postgres/src/, compose.yaml, docs/operations/postgresql-phase-2a.md                        |
+| Inbox or dashboard authorization | runtime catalogs, route, source-bound command store, dashboard session layer           | apps/api/src/inbox/, apps/api/src/dashboard/, packages/domain/src/                                          |
+| Zalo User bridge                 | experimental connector, API intake, separate process configuration and controls        | apps/zalo-user-bridge/src/, apps/api/src/zalo-user/, docs/operations/zalo-user-group-bridge-experimental.md |
 
 ## Open questions
 

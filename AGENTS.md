@@ -42,15 +42,15 @@ This is a TypeScript service repository with an npm workspace. The primary proce
 
 ## Verification commands
 
-| Purpose | Command | Evidence |
-|---|---|---|
-| Install | npm ci | README.md |
-| Run the API locally | npm run dev | package.json |
-| Run tests | npm run test | package.json |
-| Run all repository checks | npm run check | package.json |
-| Build | npm run build | package.json |
-| Run the development migration | npm run db:migrate:dev | package.json |
-| Start the local Compose stack | docker compose up --build | README.md |
+| Purpose                       | Command                   | Evidence     |
+| ----------------------------- | ------------------------- | ------------ |
+| Install                       | npm ci                    | README.md    |
+| Run the API locally           | npm run dev               | package.json |
+| Run tests                     | npm run test              | package.json |
+| Run all repository checks     | npm run check             | package.json |
+| Build                         | npm run build             | package.json |
+| Run the development migration | npm run db:migrate:dev    | package.json |
+| Start the local Compose stack | docker compose up --build | README.md    |
 
 Targeted test invocation is Unknown (not found in repository). The Compose migration service applies migrations before the API starts; direct development uses the migration command above.
 

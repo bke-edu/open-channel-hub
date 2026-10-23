@@ -15,7 +15,7 @@ Inbound normalization, durable event storage, scoped reads, direct Telegram send
 3. The API feature invokes the domain event-store port. The PostgreSQL adapter uses the configured connection scope and provider event identifier for idempotent insertion.
 4. Account-scoped or inbox-scoped readers select scope from a configured bearer credential and return a bounded page with an opaque cursor.
 
-Primary sources: apps/api/src/http/, apps/api/src/*/, packages/connector-*/src/, packages/domain/src/ports/inbound-event-store.ts, packages/storage-postgres/src/postgres-inbound-event-store.ts.
+Primary sources: apps/api/src/http/, apps/api/src/_/, packages/connector-_/src/, packages/domain/src/ports/inbound-event-store.ts, packages/storage-postgres/src/postgres-inbound-event-store.ts.
 
 ### Direct Telegram text send
 

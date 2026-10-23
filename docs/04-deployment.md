@@ -4,13 +4,13 @@
 
 ## Prerequisites and configuration
 
-| Name | Purpose | Required where | Evidence |
-|---|---|---|---|
-| Node.js | Local runtime; CI and containers pin 24.18.1, while package support is >=22.22.0 and <25 | Local development and build | package.json, .github/workflows/ci.yml, Dockerfile |
-| SOURCE_OFFER_URL | Corresponding-source offer for a production-mode API | Production configuration | README.md, apps/api/src/source/ |
-| PostgreSQL configuration | Database bootstrap and application connection | Durable API and Compose | .env.example, compose.yaml |
-| Runtime connection document | Provider accounts and operator scopes, held through the documented secret-file configuration | Configured integrations | docs/operations/runtime-multi-connection-2c.md |
-| Dashboard configuration | Optional dashboard principals, browser origin, and session settings | Dashboard-enabled API | docs/operations/operator-dashboard-4b.md |
+| Name                        | Purpose                                                                                      | Required where              | Evidence                                           |
+| --------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------- |
+| Node.js                     | Local runtime; CI and containers pin 24.18.1, while package support is >=22.22.0 and <25     | Local development and build | package.json, .github/workflows/ci.yml, Dockerfile |
+| SOURCE_OFFER_URL            | Corresponding-source offer for a production-mode API                                         | Production configuration    | README.md, apps/api/src/source/                    |
+| PostgreSQL configuration    | Database bootstrap and application connection                                                | Durable API and Compose     | .env.example, compose.yaml                         |
+| Runtime connection document | Provider accounts and operator scopes, held through the documented secret-file configuration | Configured integrations     | docs/operations/runtime-multi-connection-2c.md     |
+| Dashboard configuration     | Optional dashboard principals, browser origin, and session settings                          | Dashboard-enabled API       | docs/operations/operator-dashboard-4b.md           |
 
 Configuration names and storage locations are documented; this profile contains no values.
 
