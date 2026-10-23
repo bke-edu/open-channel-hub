@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0003: Node.js 24.18.1 LTS and npm workspaces
 
 **Date:** 2026-08-12

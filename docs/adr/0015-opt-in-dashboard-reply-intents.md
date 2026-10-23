@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0015: Opt-in source-bound reply intents from the server-rendered dashboard
 
 **Date:** 2026-08-13

@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0010: Configured read-only inbox principals
 
 **Date:** 2026-08-13

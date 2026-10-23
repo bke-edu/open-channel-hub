@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0007: Runtime-configured connection registry and token-bound account selection
 
 **Date:** 2026-08-13

@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # Architecture Decision Records
 
 ADRs record decisions whose rationale people will still need to understand six

@@ -1,0 +1,64 @@
+# > Last verified: 2026-10-23 at commit 7dd6478
+name: open-channel-hub
+type: service
+runtime: Node.js 24.18.1 in CI and containers; local package support is Node.js >=22.22.0 <25
+language: TypeScript
+entrypoint: apps/api/src/server.ts
+docs: docs/
+updated: 2026-10-23
+
+exposes:
+  - kind: HTTP API
+    name: health, readiness, source offer, provider webhooks, scoped event feeds, and Telegram text send
+    consumers:
+      - configured operators
+      - official provider webhook senders
+    contract: docs/02-api.md
+  - kind: HTTP API
+    name: optional server-rendered operator dashboard and source-bound reply intents
+    consumers:
+      - configured local dashboard principals
+    contract: docs/02-api.md
+  - kind: HTTP API
+    name: experimental Zalo User event intake
+    consumers:
+      - opt-in Zalo User bridge process
+    contract: docs/02-api.md
+
+consumes:
+  - target: PostgreSQL
+    kind: database
+    purpose: durable canonical inbound events, configured connection registry, dashboard sessions, reply intents, and append-only evidence
+  - target: Telegram Bot API
+    kind: provider API
+    purpose: configured webhook management and capability-gated direct text messages
+  - target: Google sign-in provider
+    kind: optional identity provider
+    purpose: candidate-only linked dashboard sign-in for an existing configured principal
+  - target: zca-js
+    kind: optional npm package
+    purpose: isolated experimental Zalo User session bridge
+
+depends_on:
+  - PostgreSQL
+  - Telegram Bot API
+  - npm workspace packages under packages/
+  - optional zca-js package for the experimental bridge
+  - optional Google sign-in provider for the dashboard candidate
+
+deploy:
+  environments:
+    - name: local-development
+      config_source: .env.example and documented local configuration
+    - name: local-compose
+      config_source: compose.yaml and Docker secret names
+  build_command: npm run build
+  rollback: Unknown (not found in repository)
+
+invariants:
+  - Provider input is validated at the boundary.
+  - An action is rejected before execution when the connector lacks the required capability.
+  - Canonical inbound events are unique within their connection and provider-event scope.
+  - Event-feed cursors are opaque and bound to the configured account or inbox scope.
+  - Inbox reply commands remain queued intents; they do not invoke a provider dispatcher.
+  - The Zalo User bridge is separate, opt-in, and documented as experimental.

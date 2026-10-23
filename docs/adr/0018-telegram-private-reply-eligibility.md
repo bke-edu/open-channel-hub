@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0018: Telegram private-chat and Bot-identity evidence before dispatch
 
 **Date:** 2026-08-14

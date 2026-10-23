@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0019: Immutable Telegram delivery authorization before dispatch
 
 **Date:** 2026-08-14

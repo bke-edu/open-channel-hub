@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0006: Stable, connection-scoped inbound-event pagination
 
 **Date:** 2026-08-13

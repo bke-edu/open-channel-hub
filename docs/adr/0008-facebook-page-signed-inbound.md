@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0008: Facebook Page signed inbound text boundary
 
 **Date:** 2026-08-13

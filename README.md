@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # Open Channel Hub
 
 > A self-hosted, official-first multichannel messaging hub.
@@ -719,3 +721,15 @@ anywhere in the public repository.
 This repository aims for a public, tested, accountable maintenance history, not
 cosmetic activity. Evidence and remaining work are recorded transparently in
 [docs/maintainers/oss-readiness.md](docs/maintainers/oss-readiness.md).
+
+## Maintainer profile
+
+The repository profile maps the runtime, interfaces, data, deployment evidence, security controls, and owner-backed roadmap:
+
+- [Overview](docs/00-overview.md)
+- [Architecture](docs/01-architecture.md)
+- [API and provider interfaces](docs/02-api.md)
+- [Database and personal data](docs/03-database.md)
+- [Build and deployment](docs/04-deployment.md)
+- [Security](docs/05-security.md)
+- [Current state and roadmap](docs/06-roadmap.md)

@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0020: Isolated experimental Zalo User group bridge
 
 **Date:** 2026-08-14

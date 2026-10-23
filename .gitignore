@@ -9,3 +9,6 @@ runtime-connections.local.json
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

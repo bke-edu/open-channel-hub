@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0001: Modular monolith and inward-facing contracts
 
 **Date:** 2026-08-12

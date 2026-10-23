@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0021: Configured Google sign-in for dashboard principals
 
 **Date:** 2026-08-17

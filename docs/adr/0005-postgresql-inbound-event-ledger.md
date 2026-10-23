@@ -1,3 +1,5 @@
+> Last verified: 2026-10-23 at commit 7dd6478
+
 # ADR-0005: Dedicated PostgreSQL schema and canonical inbound-event ledger
 
 **Date:** 2026-08-12
