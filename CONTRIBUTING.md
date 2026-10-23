@@ -13,7 +13,7 @@ Thank you for helping improve the project. It is in Phase 2a / alpha: the offici
 Use Node.js `24.18.1`, the exact version pinned by CI and Docker.
 
 ```bash
-git clone https://github.com/nguyenduyhung1989/open-channel-hub.git
+git clone https://github.com/bke-edu/open-channel-hub.git
 cd open-channel-hub
 npm ci
 cp .env.example .env

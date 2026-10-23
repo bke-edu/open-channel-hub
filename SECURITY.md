@@ -4,7 +4,7 @@
 
 **Do not open a public issue, pull request, or discussion for a vulnerability.** Use GitHub's private vulnerability-reporting form:
 
-<https://github.com/nguyenduyhung1989/open-channel-hub/security/advisories/new>
+<https://github.com/bke-edu/open-channel-hub/security/advisories/new>
 
 If the Security page does not show **Report a vulnerability**, a maintainer must enable GitHub Private Vulnerability Reporting before broadly promoting the repository. Do not substitute a public issue.
 

@@ -17,7 +17,7 @@ describe('Open Channel Hub API', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.headers.link).toBe(
-      '<https://github.com/nguyenduyhung1989/open-channel-hub>; rel="source"'
+      '<https://github.com/bke-edu/open-channel-hub>; rel="source"'
     );
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.json()).toEqual({
@@ -95,7 +95,7 @@ describe('Open Channel Hub API', () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.headers.link).toBe(
-      '<https://github.com/nguyenduyhung1989/open-channel-hub>; rel="source"'
+      '<https://github.com/bke-edu/open-channel-hub>; rel="source"'
     );
     expect(response.json()).toEqual({
       success: false,

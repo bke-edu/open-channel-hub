@@ -437,7 +437,7 @@ tests that do not make network requests. Direct development without PostgreSQL
 does not exercise the Phase 2a durable-storage path.
 
 ```bash
-git clone https://github.com/nguyenduyhung1989/open-channel-hub.git
+git clone https://github.com/bke-edu/open-channel-hub.git
 cd open-channel-hub
 npm ci
 cp .env.example .env

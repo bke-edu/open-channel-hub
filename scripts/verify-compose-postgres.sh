@@ -5,7 +5,7 @@ set -euo pipefail
 # without contacting an external provider or using a real operator credential.
 readonly project_name='open-channel-hub-ci-smoke'
 readonly api_host_port='30127'
-readonly source_offer_url='https://github.com/nguyenduyhung1989/open-channel-hub/'
+readonly source_offer_url='https://github.com/bke-edu/open-channel-hub/'
 readonly support_operator_api_token='synthetic_operator_support_01234567890123456789'
 readonly support_webhook_secret='synthetic_support_webhook_secret_0123456789'
 readonly sales_operator_api_token='synthetic_operator_sales_0123456789012345678901'

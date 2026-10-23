@@ -6,7 +6,7 @@ import { apiSuccess } from '../http/api-response.js';
  * Used only for local development and tests. A network-facing production
  * deployment must provide the URL for its exact corresponding source instead.
  */
-export const DEFAULT_SOURCE_OFFER_URL = 'https://github.com/nguyenduyhung1989/open-channel-hub';
+export const DEFAULT_SOURCE_OFFER_URL = 'https://github.com/bke-edu/open-channel-hub';
 
 export const registerSourceOfferRoute = async (
   app: FastifyInstance,

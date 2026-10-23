@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability privately
-    url: https://github.com/nguyenduyhung1989/open-channel-hub/security/advisories/new
+    url: https://github.com/bke-edu/open-channel-hub/security/advisories/new
     about: Do not open a public issue for a token, real data, or a vulnerability.
   - name: Support guidance
-    url: https://github.com/nguyenduyhung1989/open-channel-hub/blob/main/SUPPORT.md
+    url: https://github.com/bke-edu/open-channel-hub/blob/main/SUPPORT.md
     about: Read the documentation first, then use the Support question form if needed.

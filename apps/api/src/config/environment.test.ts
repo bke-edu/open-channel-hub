@@ -17,7 +17,7 @@ describe('parseEnvironment', () => {
       HOST: '127.0.0.1',
       NODE_ENV: 'development',
       PORT: 3000,
-      sourceOfferUrl: 'https://github.com/nguyenduyhung1989/open-channel-hub',
+      sourceOfferUrl: 'https://github.com/bke-edu/open-channel-hub',
       connectorRuntime: { enabled: false }
     });
   });
@@ -34,7 +34,7 @@ describe('parseEnvironment', () => {
       HOST: '127.0.0.1',
       NODE_ENV: 'development',
       PORT: 3010,
-      sourceOfferUrl: 'https://github.com/nguyenduyhung1989/open-channel-hub',
+      sourceOfferUrl: 'https://github.com/bke-edu/open-channel-hub',
       connectorRuntime: { enabled: false }
     });
   });
@@ -83,7 +83,7 @@ describe('parseEnvironment', () => {
         port: 5432,
         user: 'open_channel_hub'
       },
-      sourceOfferUrl: 'https://github.com/nguyenduyhung1989/open-channel-hub',
+      sourceOfferUrl: 'https://github.com/bke-edu/open-channel-hub',
       connectorRuntime: {
         botToken: TELEGRAM_BOT_TOKEN,
         connectionId: 'telegram.bot:primary',
