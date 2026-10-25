@@ -11,6 +11,6 @@
   "dependencies": {
     "@open-channel-hub/contracts": "file:../contracts",
     "@open-channel-hub/domain": "file:../domain",
-    "pg": "8.23.0"
+    "pg": "8.23.1"
   }
 }
